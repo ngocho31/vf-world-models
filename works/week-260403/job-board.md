@@ -1,5 +1,15 @@
 # Phân chia công việc
 
+## Công việc tuần 09/04/26 - 15/04/26
+
+| Người phụ trách | Công việc |
+| :--- | :--- |
+| Phượng | Tìm hiểu về phương pháp của Drive-JEPA và trọng tâm vào V-JEPA & Perception |
+| Nam | Tìm hiểu về phương pháp của Drive-JEPA và trọng tâm vào Trajectory Analyst |
+| Thành | Tìm hiểu về phương pháp của Drive-JEPA và trọng tâm vào Simulation |
+| Ân | Tìm hiểu về phương pháp của Drive-JEPA và trọng tâm vào Planner |
+| Ngọc | Khai phá dữ liệu<br>Chạy thử nghiệm mô hình với dữ liệu nhỏ |
+
 ## Tổng quan
 
 | Vai trò | Thành phần phụ trách | Nhiệm vụ chiến lược |
