@@ -41,6 +41,7 @@ def init_module(
     # --
     model_kwargs: dict,
     wrapper_kwargs: dict,
+    register_prehook: bool = True,
     **kwargs,
 ):
     logger.info(f"Loading pretrained model from {checkpoint=}")
@@ -63,7 +64,8 @@ def init_module(
         input = input.unsqueeze(2).repeat(1, 1, img_as_video_nframes, 1, 1)
         return input
 
-    model.register_forward_pre_hook(forward_prehook)
+    if register_prehook:
+        model.register_forward_pre_hook(forward_prehook)
 
     pretrained_dict = checkpoint[enc_ckp_key]
     # --

@@ -6,7 +6,7 @@ from torch.optim import Optimizer
 from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler
 
 from navsim.agents.abstract_agent import AbstractAgent
-from navsim.agents.drive_jepa_perception_free.drive_jepa_features import DriveJEPAFeatureBuilder, DriveJEPAFeatureDIBuilder 
+from navsim.agents.drive_jepa_perception_free.drive_jepa_features import DriveJEPAFeatureBuilder, DriveJEPAFeatureDIBuilder
 from navsim.agents.drive_jepa_perception_free.drive_jepa_model import DriveJEPAModel
 from navsim.common.dataclasses import AgentInput, Scene, SensorConfig
 from navsim.planning.training.abstract_feature_target_builder import AbstractFeatureBuilder, AbstractTargetBuilder
@@ -60,7 +60,7 @@ class DriveJEPAAgent(AbstractAgent):
         :param lr: learning rate during training.
         :param checkpoint_path: optional checkpoint path as string, defaults to None
         """
-        super().__init__()
+        super().__init__(trajectory_sampling)
         self._trajectory_sampling = trajectory_sampling
         self._checkpoint_path = checkpoint_path
 
@@ -84,7 +84,7 @@ class DriveJEPAAgent(AbstractAgent):
 
     def name(self) -> str:
         """Inherited, see superclass."""
-        return 'drive_jepa_perception_free_agent' 
+        return 'drive_jepa_perception_free_agent'
 
     def initialize(self) -> None:
         """Inherited, see superclass."""
@@ -129,7 +129,7 @@ class DriveJEPAAgent(AbstractAgent):
         self, features: Dict[str, torch.Tensor], targets: Dict[str, torch.Tensor], predictions: Dict[str, torch.Tensor]
     ) -> torch.Tensor:
         """Inherited, see superclass."""
-        
+
         pred, gt = predictions["trajectory"], targets["trajectory"]
         return l1_length_normalized_loss(pred, gt, alpha=5.0)
         # l1_loss = l1_length_normalized_loss(pred, gt, alpha=5.0)
@@ -154,7 +154,7 @@ def l1_length_normalized_loss(pred, gt, alpha=1.0, eps=1e-6):
     # Compute GT arc length in XY
     dxy = gt[:, 1:, :2] - gt[:, :-1, :2]                # [B, N-1, 2]
     arc_len = torch.linalg.norm(dxy, dim=-1).sum(dim=1) # [B]
-    
+
     # Compute weights: inverse of (1 + length)
     w = 1.0 / (alpha + arc_len)
 

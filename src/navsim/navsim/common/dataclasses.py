@@ -530,7 +530,7 @@ class Scene:
             frames.append(frame)
 
         return Scene(scene_metadata=scene_metadata, map_api=map_api, frames=frames)
-    
+
     @classmethod
     def from_scene_dict_list_private(
         cls,
@@ -606,7 +606,7 @@ class Scene:
                 cameras=cameras,
             )
             frames.append(frame)
-            
+
         return Scene(scene_metadata=scene_metadata, map_api=None, frames=frames)
 
     def save_to_disk(self, data_path: Path):
@@ -826,6 +826,25 @@ class SensorConfig:
             cam_r2=include,
             cam_b0=include,
             lidar_pc=include,
+        )
+
+    @classmethod
+    def build_front_only_sensors(cls, include: Union[bool, List[int]] = True) -> SensorConfig:
+        """
+        Classmethod to load only the front camera (cam_f0) with the same specification.
+        :param include: boolean or integers for sensors to include, defaults to True
+        :return: sensor configuration dataclass
+        """
+        return SensorConfig(
+            cam_f0=include,
+            cam_l0=False,
+            cam_l1=False,
+            cam_l2=False,
+            cam_r0=False,
+            cam_r1=False,
+            cam_r2=False,
+            cam_b0=False,
+            lidar_pc=False,
         )
 
     @classmethod
