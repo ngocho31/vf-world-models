@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import warnings
+from functools import lru_cache
 from typing import Any, Generator, List, Optional, Set, Tuple, Type, cast
 
 from nuplan.common.actor_state.ego_state import EgoState
@@ -13,8 +15,8 @@ from nuplan.common.maps.maps_datatypes import (
     TrafficLightStatusType,
     Transform,
 )
-from nuplan.common.maps.nuplan_map.map_factory import get_maps_api
-from nuplan.database.maps_db.gpkg_mapsdb import MAP_LOCATIONS
+from nuplan.common.maps.nuplan_map.nuplan_map import NuPlanMap
+from nuplan.database.maps_db.gpkg_mapsdb import DUMMY_LOAD_LAYER, GPKGMapsDB, MAP_LOCATIONS
 from nuplan.planning.scenario_builder.abstract_scenario import AbstractScenario
 from nuplan.planning.simulation.observation.observation_type import DetectionsTracks, SensorChannel, Sensors
 from nuplan.planning.simulation.trajectory.trajectory_sampling import TrajectorySampling
@@ -29,6 +31,34 @@ from navsim.planning.scenario_builder.navsim_scenario_utils import (
 
 DUMMY_SCENARIO_TYPE = "unknown"
 DUMMY_GOAL_STATE = StateSE2(0, 0, 0)
+
+
+class _MetadataAwareGPKGMapsDB(GPKGMapsDB):
+    """Load only map locations declared in active map-version metadata."""
+
+    def _load_map_data(self) -> None:
+        for location in self._metadata.keys():
+            self.load_vector_layer(location, DUMMY_LOAD_LAYER)
+
+
+@lru_cache(maxsize=64)
+def _get_maps_api_ext(map_root: str, map_version: str, map_name: str) -> AbstractMap:
+    maps_db = _MetadataAwareGPKGMapsDB(map_root=map_root, map_version=map_version)
+    return NuPlanMap(maps_db, map_name)
+
+
+def _resolve_map_locations(map_root: str, map_version: str) -> Set[str]:
+    """Return built-in locations plus any custom locations in <map_version>.json."""
+    extra: Set[str] = set()
+    json_path = f"{map_root}/{map_version}.json"
+    try:
+        with open(json_path, encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            extra = set(data.keys())
+    except Exception:
+        pass
+    return MAP_LOCATIONS | extra
 
 
 class NavSimScenario(AbstractScenario):
@@ -114,8 +144,9 @@ class NavSimScenario(AbstractScenario):
     @property
     def map_api(self) -> AbstractMap:
         """Inherited, see superclass."""
-        assert self._map_name in MAP_LOCATIONS, f"Map location {self._map_name} not available!"
-        map_api = get_maps_api(self._map_root, self._map_version, self._map_name)
+        all_locations = _resolve_map_locations(self._map_root, self._map_version)
+        assert self._map_name in all_locations, f"Map location {self._map_name} not available!"
+        map_api = _get_maps_api_ext(self._map_root, self._map_version, self._map_name)
         return map_api
 
     @property

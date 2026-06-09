@@ -1,0 +1,4 @@
+defaults:
+  - scene_filter: vftest
+
+data_split: test

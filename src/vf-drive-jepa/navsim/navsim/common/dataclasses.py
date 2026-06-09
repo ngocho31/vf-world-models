@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import pickle
 import warnings
 from dataclasses import asdict, dataclass, fields
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, List, Optional, Tuple, Union
+from typing import Any, BinaryIO, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -14,7 +16,8 @@ from nuplan.common.actor_state.state_representation import StateSE2
 from nuplan.common.maps.abstract_map import AbstractMap
 from nuplan.common.maps.maps_datatypes import TrafficLightStatuses
 from nuplan.common.maps.nuplan_map.map_factory import get_maps_api
-from nuplan.database.maps_db.gpkg_mapsdb import MAP_LOCATIONS
+from nuplan.common.maps.nuplan_map.nuplan_map import NuPlanMap
+from nuplan.database.maps_db.gpkg_mapsdb import DUMMY_LOAD_LAYER, GPKGMapsDB, MAP_LOCATIONS
 from nuplan.database.utils.pointclouds.lidar import LidarPointCloud
 from nuplan.planning.simulation.observation.observation_type import DetectionsTracks
 from nuplan.planning.simulation.trajectory.trajectory_sampling import TrajectorySampling
@@ -28,6 +31,39 @@ from navsim.planning.simulation.planner.pdm_planner.utils.pdm_geometry_utils imp
 NAVSIM_INTERVAL_LENGTH: float = 0.5
 OPENSCENE_DATA_ROOT = os.environ.get("OPENSCENE_DATA_ROOT")
 NUPLAN_MAPS_ROOT = os.environ.get("NUPLAN_MAPS_ROOT")
+NUPLAN_MAP_VERSION = os.environ.get("NUPLAN_MAP_VERSION", "nuplan-maps-v1.0")
+
+
+class _MetadataAwareGPKGMapsDB(GPKGMapsDB):
+    """GPKGMapsDB subclass that only loads locations present in the version JSON.
+
+    The stock GPKGMapsDB._load_map_data() iterates the hard-coded MAP_LOCATIONS
+    set, which causes a KeyError when the active JSON (e.g. vf-maps-v1.0.json)
+    only contains custom locations such as ``vn-hdmap-demo``.  This subclass
+    restricts the preload loop to whatever the JSON actually declares.
+    """
+
+    def _load_map_data(self) -> None:
+        for location in self._metadata.keys():
+            self.load_vector_layer(location, DUMMY_LOAD_LAYER)
+
+
+@lru_cache(maxsize=32)
+def _get_maps_api_ext(map_root: str, map_version: str, map_name: str) -> AbstractMap:
+    """Cached get_maps_api that accepts any location declared in the version JSON."""
+    maps_db = _MetadataAwareGPKGMapsDB(map_root=map_root, map_version=map_version)
+    return NuPlanMap(maps_db, map_name)
+
+
+def _resolve_map_locations() -> Set[str]:
+    """Return MAP_LOCATIONS union with locations found in the active version JSON."""
+    extra: Set[str] = set()
+    if NUPLAN_MAPS_ROOT and NUPLAN_MAP_VERSION:
+        json_path = os.path.join(NUPLAN_MAPS_ROOT, f"{NUPLAN_MAP_VERSION}.json")
+        if os.path.exists(json_path):
+            with open(json_path) as _f:
+                extra = set(json.load(_f).keys())
+    return MAP_LOCATIONS | extra
 
 
 @dataclass
@@ -437,8 +473,9 @@ class Scene:
     @classmethod
     def _build_map_api(cls, map_name: str) -> AbstractMap:
         """Helper classmethod to load map api from name."""
-        assert map_name in MAP_LOCATIONS, f"The map name {map_name} is invalid, must be in {MAP_LOCATIONS}"
-        return get_maps_api(NUPLAN_MAPS_ROOT, "nuplan-maps-v1.0", map_name)
+        all_locations = _resolve_map_locations()
+        assert map_name in all_locations, f"The map name {map_name} is invalid, must be in {all_locations}"
+        return _get_maps_api_ext(NUPLAN_MAPS_ROOT, NUPLAN_MAP_VERSION, map_name)
 
     @classmethod
     def _build_annotations(cls, scene_frame: Dict) -> Annotations:

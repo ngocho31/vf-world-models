@@ -23,6 +23,23 @@ from navsim.planning.scenario_builder.navsim_scenario import NavSimScenario
 logger = logging.getLogger(__name__)
 
 
+def _resolve_map_version(map_root: str) -> str:
+    """Resolve map version for caching, preferring explicit env then existing JSONs."""
+    env_version = os.environ.get("NUPLAN_MAP_VERSION")
+    if env_version:
+        return env_version
+
+    for candidate in ("vf-maps-v1.0", "nuplan-maps-v1.0"):
+        if (Path(map_root) / f"{candidate}.json").exists():
+            return candidate
+
+    json_files = sorted(Path(map_root).glob("*.json"))
+    if len(json_files) == 1:
+        return json_files[0].stem
+
+    return "nuplan-maps-v1.0"
+
+
 def cache_scenarios(args: List[Dict[str, Union[List[str], DictConfig]]]) -> List[CacheResult]:
     """
     Performs the caching of scenario DB files in parallel.
@@ -39,6 +56,12 @@ def cache_scenarios(args: List[Dict[str, Union[List[str], DictConfig]]]) -> List
     #
     # This is necessary to save memory when running on large datasets.
     def cache_scenarios_internal(args: List[Dict[str, Union[Path, DictConfig]]]) -> List[CacheResult]:
+        map_root = os.environ.get("NUPLAN_MAPS_ROOT")
+        assert map_root, "NUPLAN_MAPS_ROOT must be set for metric caching"
+        map_version = _resolve_map_version(map_root)
+
+        logger.info("Metric caching map setup: root=%s version=%s", map_root, map_version)
+
         def cache_single_scenario(
             scene_dict: Dict[str, Any], processor: MetricCacheProcessor
         ) -> Optional[CacheMetadataEntry]:
@@ -51,8 +74,8 @@ def cache_scenarios(args: List[Dict[str, Union[List[str], DictConfig]]]) -> List
             )
             scenario = NavSimScenario(
                 scene,
-                map_root=os.environ["NUPLAN_MAPS_ROOT"],
-                map_version="nuplan-maps-v1.0",
+                map_root=map_root,
+                map_version=map_version,
             )
 
             return processor.compute_and_save_metric_cache(scenario)
@@ -61,7 +84,7 @@ def cache_scenarios(args: List[Dict[str, Union[List[str], DictConfig]]]) -> List
             scene_path: Path, processor: MetricCacheProcessor
         ) -> Optional[CacheMetadataEntry]:
             scene = Scene.load_from_disk(scene_path, None, SensorConfig.build_no_sensors())
-            scenario = NavSimScenario(scene, map_root=os.environ["NUPLAN_MAPS_ROOT"], map_version="nuplan-maps-v1.0")
+            scenario = NavSimScenario(scene, map_root=map_root, map_version=map_version)
 
             return processor.compute_and_save_metric_cache(scenario)
 

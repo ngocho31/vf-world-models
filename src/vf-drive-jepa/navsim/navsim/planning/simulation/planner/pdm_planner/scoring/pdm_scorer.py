@@ -62,6 +62,16 @@ class PDMScorerConfig:
     # human flag
     human_penalty_filter: Optional[bool] = None
 
+    # per-metric compute flags: when False, metric is skipped and excluded (NaN) from scoring
+    compute_no_at_fault_collisions: bool = True
+    compute_drivable_area_compliance: bool = True
+    compute_driving_direction_compliance: bool = True
+    compute_traffic_light_compliance: bool = True
+    compute_ego_progress: bool = True
+    compute_ttc: bool = True
+    compute_lane_keeping: bool = True
+    compute_history_comfort: bool = True
+
     @property
     def weighted_metrics_array(self) -> npt.NDArray[np.float64]:
         weighted_metrics = np.zeros(len(WeightedMetricIndex), dtype=np.float64)
@@ -167,19 +177,49 @@ class PDMScorer:
         self._calculate_ego_area()
 
         # 1. multiplicative metrics
-        self._calculate_no_at_fault_collision()
-        self._calculate_drivable_area_compliance()
-        self._calculate_traffic_light_compliance()
-        self._calculate_driving_direction_compliance()
+        if self._config.compute_no_at_fault_collisions:
+            self._calculate_no_at_fault_collision()
+        if self._config.compute_drivable_area_compliance:
+            self._calculate_drivable_area_compliance()
+        if self._config.compute_traffic_light_compliance:
+            self._calculate_traffic_light_compliance()
+        if self._config.compute_driving_direction_compliance:
+            self._calculate_driving_direction_compliance()
 
         # 2. weighted metrics
-        self._calculate_progress()
-        self._calculate_ttc()
-        self._calculate_lane_keeping()
-        self._calculate_history_comfort()
+        if self._config.compute_ego_progress:
+            self._calculate_progress()
+        if self._config.compute_ttc:
+            self._calculate_ttc()
+        if self._config.compute_lane_keeping:
+            self._calculate_lane_keeping()
+        if self._config.compute_history_comfort:
+            self._calculate_history_comfort()
+
+        # mark disabled multiplicative metrics as NaN so they are excluded from the product
+        if not self._config.compute_no_at_fault_collisions:
+            self._multi_metrics[MultiMetricIndex.NO_COLLISION] = np.nan
+        if not self._config.compute_drivable_area_compliance:
+            self._multi_metrics[MultiMetricIndex.DRIVABLE_AREA] = np.nan
+        if not self._config.compute_driving_direction_compliance:
+            self._multi_metrics[MultiMetricIndex.DRIVING_DIRECTION] = np.nan
+        if not self._config.compute_traffic_light_compliance:
+            self._multi_metrics[MultiMetricIndex.TRAFFIC_LIGHT_COMPLIANCE] = np.nan
 
         pdm_scores = self._aggregate_pdm_scores()
-        multiplicative_metrics_prods, weighted_metrics_all = self._multi_metrics.prod(axis=0), self._weighted_metrics
+        multiplicative_metrics_prods = np.nanprod(self._multi_metrics, axis=0)
+
+        # mark disabled weighted metrics as NaN so they are excluded from output
+        if not self._config.compute_ego_progress:
+            self._weighted_metrics[WeightedMetricIndex.PROGRESS] = np.nan
+        if not self._config.compute_ttc:
+            self._weighted_metrics[WeightedMetricIndex.TTC] = np.nan
+        if not self._config.compute_lane_keeping:
+            self._weighted_metrics[WeightedMetricIndex.LANE_KEEPING] = np.nan
+        if not self._config.compute_history_comfort:
+            self._weighted_metrics[WeightedMetricIndex.HISTORY_COMFORT] = np.nan
+
+        weighted_metrics_all = self._weighted_metrics
 
         results: List[pd.DataFrame] = []
         for proposal_idx in range(self._num_proposals):
@@ -225,8 +265,8 @@ class PDMScorer:
         Score for PDM proposals, ignoring two-frame extended comfort.
         """
 
-        # accumulate multiplicative metrics
-        multiplicate_metric_scores = self._multi_metrics.prod(axis=0)
+        # accumulate multiplicative metrics (NaN entries are excluded via nanprod)
+        multiplicate_metric_scores = np.nanprod(self._multi_metrics, axis=0)
 
         # normalize and fill progress values
         masked_progress = self._progress_raw * multiplicate_metric_scores

@@ -5,5 +5,7 @@ export PYTHONPATH="${VF_DRIVE_JEPA_ROOT}:${NAVSIM_ROOT}:${VJEPA2_ROOT}:${PYTHONP
 
 cd "${VF_DRIVE_JEPA_ROOT}"
 python $NAVSIM_DEVKIT_ROOT/navsim/planning/script/run_metric_caching.py \
+  --config-path $NAVSIM_DEVKIT_ROOT/navsim/planning/script/config/metric_caching \
+  --config-name vf_metric_caching.yaml \
   train_test_split=$TRAIN_TEST_SPLIT_NAVTEST \
   metric_cache_path=$METRIC_CACHE_PATH
