@@ -9,6 +9,9 @@
 | Phượng + Khanh + Tuấn Anh | Đánh Giá 1 |
 | Ngọc + Phượng + Nam | Đánh Giá 2 |
 | Ngọc | Tìm hiểu các phương pháp đánh giá và cải tiến mô hình |
+| Ngọc | Viết PhD Proposal |
+| Thành | Yêu cầu 1 - Push code lên Azure DevOps |
+| Khanh | Yêu cầu 2 - Cập nhật phần đánh giá trực quan hóa |
 
 ---
 
@@ -33,3 +36,12 @@
 | **Nhóm Thu Thập Dữ Liệu** | * Tiếp tục thu thập bù nếu có test-case bị lỗi/thiếu.<br>* Tiền xử lý dữ liệu (chuyển đổi định dạng, chuẩn hóa, loại bỏ nhiễu) theo đúng yêu cầu đầu vào của V-JEPA2. | Bộ dữ liệu thử nghiệm chuẩn hóa (Dữ liệu Sạch): Được đóng gói thành cấu trúc thư mục hoàn chỉnh, sẵn sàng nạp thẳng vào code của Nhóm Đánh giá mà không bị lỗi runtime. |
 | **Nhóm Đánh Giá 1** | * Hiện thực hóa các thuật toán đánh giá không gian (Cosine / Mahalanobis) bằng code Python trên nền môi trường V-JEPA2 có sẵn.<br>* Chạy thực nghiệm trên tập dữ liệu tĩnh sạch do Nhóm Data bàn giao. | * Bản đồ nhiệt chú ý (Spatial Attention Heatmaps) chồng lên ảnh gốc.<br>* Ma trận số liệu thể hiện độ lệch phân phối (OOD scores) của dữ liệu Việt Nam so với tập pre-trained. |
 | **Nhóm Đánh Giá 2** | * Hiện thực hóa các thuật toán đánh giá tính ổn định chuỗi thời gian (Predictor Loss / Mutual Information) bằng code Python.<br>* Chạy thực nghiệm trên tập video động sạch do Nhóm Data bàn giao. | * Đồ thị đường (Line plots) thể hiện sự biến động của sai số dự đoán qua từng khung hình (chỉ rõ các điểm Loss vọt lên khi có tạt đầu/nhiễu thời tiết). |
+
+### Yêu cầu từ Vinfast
+
+1. Push code lên Azure DevOps:
+    * Nhánh 1: `training` - chứa code mô hình huấn luyện và đánh giá (full pipeline)
+    * Nhánh 2: `converter` - chứa code chuyển đổi dữ liệu từ định dạng VF sang định dạng của NAVSIM
+2. Cập nhật phần đánh giá trực quan hóa:
+    * Thêm đơn vị đo lường (mét) vào trục khi vẽ quỹ đạo. Khi vẽ quỹ đạo lên ảnh/video, cần bổ sung rõ các trục đơn vị đo lường (ví dụ: mét - biểu diễn khoảng cách tương đối).
+    * Xây dựng video Ground Truth tích hợp cảm biến (camera + IMU + CAN-bus). Chèn các tín hiệu xử lý và tín hiệu từ cảm biến lên góc video để người xem biết lúc đó xe đang ở trạng thái vật lý nào (ví dụ: tốc độ, góc đánh lái, gia tốc).
