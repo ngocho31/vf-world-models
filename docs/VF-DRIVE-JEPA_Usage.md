@@ -130,3 +130,109 @@ outputs/vf_qualitative_eval/
 	frames/
 	predicted_trajectories.json
 ```
+
+## 7. VF to NAVSIM Converter Usage
+
+This section explains how to run the converter package at `src/vf_navsim_converter` to produce NAVSIM-style outputs from one VF scene root.
+
+### 7.1 Prerequisites
+
+From repository root:
+
+```bash
+cd /workspace
+source ./src/vf-drive-jepa/env.local.sh
+```
+
+### 7.2 Required input layout
+
+`--input-root` must point to a VF scene root containing at least:
+
+```text
+<VF_INPUT_ROOT>/
+	CAMERA/
+		CAM_P_F/
+		CAM_P_FL/
+		CAM_P_L/
+		CAM_P_LB/
+		CAM_P_FR/
+		CAM_P_R/
+		CAM_P_RB/
+		CAM_P_B/
+	OTHERS/
+		NAV/*.csv
+		IMU/*.csv                 # optional but strongly recommended
+		VEHICLE_INFO/*.csv        # optional but strongly recommended
+		VEHICLE_STEER/*.csv       # optional but strongly recommended
+		Calibration/
+			Camera_Intrinsics.json
+			Extrinsics.json
+	LIDAR/
+		LIDAR_E_F/
+		LIDAR_E_L/
+		LIDAR_E_R/
+		LIDAR_E_B/
+		LIDAR_TOP/
+	vn-hdmap-demo/
+		lanelet2_map.osm          # or any *.osm in this folder
+```
+
+Notes:
+- The map folder name must match `--map-location` (default: `vn-hdmap-demo`).
+
+### 7.3 Run command
+
+Minimal run:
+
+```bash
+python -m vf_navsim_converter.cli \
+	--input-root /workspace/data/<VF_INPUT_ROOT> \
+	--output-root /workspace/data/<VF_OUTPUT_ROOT>
+```
+
+Run with explicit metadata:
+
+```bash
+python -m vf_navsim_converter.cli \
+	--input-root /workspace/data/<VF_INPUT_ROOT> \
+	--output-root /workspace/data/<VF_OUTPUT_ROOT> \
+	--vehicle-name veh-01 \
+	--map-location vn-hdmap-demo \
+	--map-version 2026-06-12
+```
+
+CLI arguments:
+- `--input-root` (required): VF scene root
+- `--output-root` (required): output root for NAVSIM-style artifacts
+- `--vehicle-name` (optional, default `veh-01`)
+- `--map-location` (optional, default `vn-hdmap-demo`)
+- `--map-version` (optional, default current date `YYYY-MM-DD`)
+
+### 7.4 Output layout
+
+After success, `--output-root` contains:
+
+```text
+<VF_OUTPUT_ROOT>/
+	maps/
+		vf-maps-v1.0.json
+		<map_location>/<map_version>/map.gpkg
+	navsim_logs/
+		trainval/
+			<log_name>.pkl
+	sensor_blobs/
+		trainval/
+			<log_name>/
+				CAM_F0/ ... CAM_B0/
+				MergedPointCloud/
+	.conversion_metadata/
+		stage0_map_conversion_report.json
+		stage1_discovery_manifest.json
+		stage2_raw_sensor_bundle.json
+		stage3_alignment_manifest.json
+		stage4_canonical_manifest.json
+		stage45_scene_map_sync_context.json
+		stage5_navsim_manifest.json
+		stage7_artifact_manifest.json
+		conversion_report.json
+```
