@@ -5,25 +5,24 @@ PLANNER_CKPT="${WORKSPACE_ROOT}/.cache/checkpoints/phase2/drive_jepa_perception_
 ENCODER_PT="${WORKSPACE_ROOT}/.cache/checkpoints/vjepa2/vitl_merge_3dataset_e50.pt"
 AGENT_CONFIG="${NAVSIM_ROOT}/navsim/planning/script/config/common/agent/drive_jepa_perception_free_agent.yaml"
 
-# Folder paths based on VF-DRIVE-JEPA_Usage.md
+# VinFast dataset paths
 CAMERA_DIR="${WORKSPACE_ROOT}/dataset_vf/data/CAMERA/CAM_P_F"
 NAV_DIR="${WORKSPACE_ROOT}/dataset_vf/data/OTHERS/NAV"
 STEER_DIR="${WORKSPACE_ROOT}/dataset_vf/data/OTHERS/VEHICLE_STEER"
 
-OUTPUT_DIR="${WORKSPACE_ROOT}/outputs/vf_qualitative_eval_enhanced"
+OUTPUT_DIR="${WORKSPACE_ROOT}/outputs/vf_gt_vs_pred"
 FRAME_STRIDE=0
 SAMPLE_GAP_SECONDS=1
 MAX_FRAMES=100
 FPS=10
 
-# Setup PYTHONPATH: custom src FIRST, then upstream, then others
 export PYTHONPATH="${VF_DRIVE_JEPA_ROOT}:${NAVSIM_ROOT}:${VJEPA2_ROOT}:${PYTHONPATH:-}"
 
-echo "[INFO] Running enhanced qualitative evaluation with telemetry and units..."
+echo "[INFO] Running GT vs Prediction overlay evaluation..."
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${VF_DRIVE_JEPA_ROOT}"
-python "${SCRIPT_DIR}/vf_qualitative_eval_enhanced.py" \
+python "${SCRIPT_DIR}/vf_qualitative_eval_gt_overlay.py" \
   --checkpoint-path "${PLANNER_CKPT}" \
   --encoder-path "${ENCODER_PT}" \
   --agent-config "${AGENT_CONFIG}" \
