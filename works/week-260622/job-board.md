@@ -10,6 +10,10 @@
 | Ngọc + Phượng + Nam | Đánh Giá 2 |
 | Ngọc | Tìm hiểu các phương pháp đánh giá và cải tiến mô hình |
 | Ngọc | Viết PhD Proposal |
+| Nhóm Đánh Giá 1 + 2 | Yêu cầu 1 |
+| Nhóm Đánh Giá 1 | Yêu cầu 2 |
+| Nhóm Đánh Giá 1 + 2 | Yêu cầu 3 |
+| Ngọc + Phượng | Yêu cầu 4 |
 
 ---
 
@@ -23,3 +27,20 @@
 | | * Hiện thực hóa thuật toán tính toán khoảng cách Mahalanobis.<br>* Chạy thực nghiệm trên tập dữ liệu của openscene và tập dữ liệu của Nhóm Data bàn giao. | * Bản đồ nhiệt bất thường (Anomaly Attention Heatmaps) chồng lên ảnh gốc.<br>* Ma trận số liệu thể hiện điểm số Mahalanobis của dữ liệu Việt Nam so với tập pre-trained. |
 | **Nhóm Đánh Giá 2** | * Tìm hiểu cách Predictor dự đoán trạng thái ẩn tương lai $z_{t+1}$ từ $z_t$.<br>* Tìm hiểu thêm: **Thông tin tương hỗ (Mutual Information)** hoặc các độ đo kiểm định tính ổn định chuỗi thời gian (*Temporal Consistency*). | * Slide trình bày về cơ chế dự đoán trạng thái ẩn và đánh giá tính ổn định chuỗi thời gian.<br>* Đề xuất phương pháp đánh giá tính ổn định chuỗi thời gian (nếu có) |
 | | * Hiện thực hóa các thuật toán đánh giá tính ổn định chuỗi thời gian (Predictor Loss / Mutual Information) bằng code Python.<br>* Chạy thực nghiệm trên tập video động sạch do Nhóm Data bàn giao. | * Đồ thị đường (Line plots) thể hiện sự biến động của sai số dự đoán qua từng khung hình (chỉ rõ các điểm Loss vọt lên khi có tạt đầu/nhiễu thời tiết). |
+
+---
+
+## Yêu cầu từ Vinfast cập nhật 26/06/26
+
+1. Báo cáo định tính (Qualitative Evaluation)
+- Hoàn thiện phần đánh giá đặc trưng không gian (Spatial Analytics) và đặc trưng thời gian (Temporal Analytics) của V-JEPA2.
+- Trình bày các kết quả đánh giá có các hình ảnh minh họa (ví dụ: Heatmaps, Line plots)
+- Gửi báo cáo định tính cho Vinfast vào ngày 03/07/26.
+
+2. Làm rõ phương pháp đo lường Cosine Similarity
+- Nhóm Đánh Giá 1 cần làm rõ cách tính toán Cosine Similarity.
+
+3. Cơ sở đánh giá không gian
+- Liệt kê và trích dẫn cụ thể các hệ quy chiếu từ các bài báo liên quan đến đánh giá đặc trưng không gian (Spatial Analytics) và đặc trưng thời gian (Temporal Analytics) của V-JEPA2.
+
+4. Làm rõ luồng hoạt động của V-JEPA2
