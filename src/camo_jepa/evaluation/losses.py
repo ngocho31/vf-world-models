@@ -17,8 +17,13 @@ def compute_reconstruction_loss(fused: torch.Tensor, static: torch.Tensor) -> to
 
 
 def compute_orthogonality_loss(z_task: torch.Tensor, z_exogenous: torch.Tensor) -> torch.Tensor:
-    inner_product = (z_task * z_exogenous).sum(dim=-1)
-    return inner_product.square().mean()
+    D = z_task.shape[-1]
+    z_task_flat = z_task.reshape(-1, D)
+    z_exo_flat = z_exogenous.reshape(-1, D)
+    n_samples = z_task_flat.shape[0]
+
+    gram = (z_task_flat.transpose(0, 1) @ z_exo_flat) / n_samples
+    return (gram ** 2).sum()
 
 
 class CaMoJEPALoss(nn.Module):

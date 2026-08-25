@@ -12,6 +12,7 @@ from ..evaluation import CaMoJEPALoss
 from ..perception import (
     CausalPredictor,
     MaskSampler,
+    GatedCrossAttentionFusion,
     ResidualFusion,
     build_vit_encoders,
     build_motion_encoder_adapter,
@@ -42,6 +43,20 @@ class CaMoJEPAPipeline(nn.Module):
         )
         # Convenience aliases used by checkpoints.py and forward()
         self.flow_encoder = self.motion_adapter.flow_encoder
+        # self.fusion = ResidualFusion(config.latent_dim, config.flow_token_dim, config.fusion_scale)
+        self.fusion = GatedCrossAttentionFusion(
+            embed_dim=config.latent_dim,
+            num_heads=4,
+            dynamic_dim=config.flow_token_dim,
+            fusion_scale=config.fusion_scale,
+        )        
+        self.factorizer = LatentFactorizer(config.latent_dim, enforce_orthogonal_projector=True)
+        self.confounder = ConfounderGRU(config.latent_dim, config.confounder_dim)
+        self.mask_sampler = MaskSampler(
+            config.mask_ratio,
+            image_size=config.image_size,
+            vjepa2_root=config.vjepa2_root,
+        )
 
         self.predictor = CausalPredictor(
             checkpoint_path=config.vitl_checkpoint_path,
@@ -56,15 +71,6 @@ class CaMoJEPAPipeline(nn.Module):
             num_mask_tokens=config.predictor_num_mask_tokens,
             mode=config.mode,
             freeze=config.predictor_freeze,
-        )
-
-        self.fusion = ResidualFusion(config.latent_dim, config.flow_token_dim, config.fusion_scale)
-        self.factorizer = LatentFactorizer(config.latent_dim)
-        self.confounder = ConfounderGRU(config.latent_dim, config.confounder_dim)
-        self.mask_sampler = MaskSampler(
-            config.mask_ratio,
-            image_size=config.image_size,
-            vjepa2_root=config.vjepa2_root,
         )
         self.loss_fn = CaMoJEPALoss(
             lambda_jepa=config.jepa_loss_weight,
@@ -104,7 +110,7 @@ class CaMoJEPAPipeline(nn.Module):
         z_task, z_exogenous = self.factorizer(fused)
 
         # Step 5: Confounder GRU — mean-pools patches internally → [B, confounder_dim]
-        U = self.confounder(fused)
+        U = self.confounder(z_task)
 
         # Step 6: Flatten spatiotemporal tokens for masking
         B, T_1, N_p, D = z_task.shape

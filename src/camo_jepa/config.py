@@ -21,7 +21,7 @@ class CaMoJEPAConfig:
 
     # Drive-JEPA ViT-L checkpoint and V-JEPA2 root path for loading pretrained weights
     vitl_checkpoint_path: str = ".cache/checkpoints/vjepa2/vitl_merge_3dataset_e50.pt"
-    vjepa2_root: str = "vf-drive-jepa/vjepa2"
+    vjepa2_root: str = "src/vf-drive-jepa/vjepa2"
     encoder_freeze: bool = True
 
     # Motion encoder parameters
