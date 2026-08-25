@@ -20,10 +20,15 @@ class FrameBatch:
     ego-motion vector at time index ``t`` comes from the same source frame
     timestamp. These are observed vehicle-motion signals, not direct driving
     controls returned by Drive-JEPA.
+    
+    ``flows`` is optional and, when supplied, has shape ``[B, T-1, 2, H, W]``.
+    It contains pre-computed Optical Flow (e.g. from LiteFlowNet3).
     """
 
     images: torch.Tensor
     ego_motion: torch.Tensor | None = None
+    flows: torch.Tensor | None = None
+
 
     def validate(self) -> None:
         if self.images.ndim != 5:

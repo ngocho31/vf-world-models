@@ -8,14 +8,23 @@ from torch import nn
 import torch.nn.functional as F
 
 
-class FrameDifferenceFlow(nn.Module):
-    """Reference motion estimator: calculates pixel differences between consecutive frames."""
+class PrecomputedFlowReader(nn.Module):
+    """Motion estimator that simply reads pre-computed Optical Flow (e.g., LiteFlowNet3).
+    
+    In this design, the Dataloader is responsible for loading the `.npy` files and
+    passing them into the model via the `flows` argument.
+    """
 
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
-        if images.ndim != 5:
-            raise ValueError("images must have shape [batch, time, channels, height, width]")
-        difference = images[:, 1:] - images[:, :-1]
-        return difference.mean(dim=2, keepdim=True).repeat(1, 1, 2, 1, 1)
+    def forward(self, images: torch.Tensor, flows: torch.Tensor | None = None) -> torch.Tensor:
+        if flows is None:
+            raise ValueError(
+                "PrecomputedFlowReader requires pre-computed flows to be passed in! "
+                "Ensure your Dataloader loads the LiteFlowNet3 .npy files and adds them "
+                "to the FrameBatch."
+            )
+        if flows.ndim != 5:
+            raise ValueError("flows must have shape [batch, time-1, channels, height, width]")
+        return flows
 
 
 class FlowTokenEncoder(nn.Module):
@@ -94,10 +103,9 @@ class FlowDecoder(nn.Module):
 class MotionPretrainPipeline(nn.Module):
     """Autoencoder pipeline for the motion pre-training stage.
 
-    Placeholder design (will be replaced by LiteFlowNet3 estimator):
+    Design:
 
-        images [B, T, C, H, W]
-          -> FrameDifferenceFlow (no-grad) -> gt_flow [B, T-1, 2, H, W]
+        flows [B, T-1, 2, H, W]  (pre-computed by LiteFlowNet3)
           -> FlowTokenEncoder (trainable)  -> dynamic_patches [B, T-1, N, D]
           -> FlowDecoder      (trainable)  -> pred_flow [B, T-1, 2, H, W]
           -> L1 loss vs. gt_flow
@@ -108,22 +116,23 @@ class MotionPretrainPipeline(nn.Module):
 
     def __init__(self, flow_channels: int = 2, token_dim: int = 1024) -> None:
         super().__init__()
-        self.flow_estimator = FrameDifferenceFlow()
+        self.flow_estimator = PrecomputedFlowReader()
         self.flow_encoder = FlowTokenEncoder(flow_channels, token_dim)
         self.flow_decoder = FlowDecoder(token_dim, flow_channels)
 
-    def forward(self, images: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, images: torch.Tensor, flows: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Run one autoencoding forward pass.
 
         Args:
             images: [B, T, C, H, W] raw RGB frames.
+            flows: [B, T-1, 2, H, W] pre-computed optical flow.
 
         Returns:
             pred_flow: [B, T-1, 2, H, W]
             loss: scalar L1 reconstruction loss
         """
         with torch.no_grad():
-            gt_flow = self.flow_estimator(images)
+            gt_flow = self.flow_estimator(images, flows=flows)
 
         dynamic_patches = self.flow_encoder(gt_flow)
         image_size = (images.size(-2), images.size(-1))

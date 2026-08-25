@@ -1,0 +1,14 @@
+*.pytorch
+*.npy
+__pycache__/
+*.pytorch
+*.pytorch
+__pycache__/
+*.npy
+venv_camo/
+data/
+build/
+*.egg-info/
+*.o
+*.so
+*.flo

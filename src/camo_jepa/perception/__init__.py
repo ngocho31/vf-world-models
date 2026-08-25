@@ -1,6 +1,6 @@
 """Sibling static, motion, predictor, and fusion perception modules."""
 
-from ..motion import FlowTokenEncoder, FrameDifferenceFlow, MotionPretrainPipeline
+from ..motion import FlowTokenEncoder, PrecomputedFlowReader, MotionPretrainPipeline
 from .fusion import ResidualFusion
 from .masking import MaskSampler
 from .motion_encoder import MotionEncoderAdapter, build_motion_encoder_adapter
@@ -13,7 +13,7 @@ __all__ = [
     "CausalPredictor",
     "DriveJEPAViTLEncoder",
     "FlowTokenEncoder",
-    "FrameDifferenceFlow",
+    "PrecomputedFlowReader",
     "MaskSampler",
     "MotionEncoderAdapter",
     "MotionPretrainPipeline",

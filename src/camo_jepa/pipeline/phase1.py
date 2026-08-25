@@ -90,7 +90,7 @@ class CaMoJEPAPipeline(nn.Module):
         batch.validate()
 
         # Step 1: Motion branch — [B, T-1, N_p, 1024]
-        dynamic = self.motion_adapter(batch.images)
+        dynamic = self.motion_adapter(batch.images, flows=batch.flows)
 
         # Step 2: Static branch — keep full patch tokens [B, T-1, N_p, 1024]
         context_tokens = self.context_encoder.forward_tokens(batch.images)

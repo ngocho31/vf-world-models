@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 from torch import nn
 
-from ..motion import FlowTokenEncoder, FrameDifferenceFlow
+from ..motion import FlowTokenEncoder, PrecomputedFlowReader
 
 
 class MotionEncoderAdapter(nn.Module):
@@ -35,24 +35,25 @@ class MotionEncoderAdapter(nn.Module):
         freeze: bool = False,
     ) -> None:
         super().__init__()
-        self.flow_estimator = FrameDifferenceFlow()   # always frozen — no learnable params
+        self.flow_estimator = PrecomputedFlowReader()   # always frozen — no learnable params
         self.flow_encoder = FlowTokenEncoder(flow_channels, token_dim)
 
         if freeze:
             self.flow_encoder.requires_grad_(False)
             self.flow_encoder.eval()
 
-    def forward(self, images: torch.Tensor) -> torch.Tensor:
+    def forward(self, images: torch.Tensor, flows: torch.Tensor | None = None) -> torch.Tensor:
         """Encode consecutive-frame flow into patch tokens.
 
         Args:
             images: [B, T, C, H, W] raw RGB frames.
+            flows: [B, T-1, 2, H, W] pre-computed optical flow.
 
         Returns:
             dynamic_patches: [B, T-1, N, token_dim]
         """
         with torch.no_grad():
-            gt_flow = self.flow_estimator(images)   # [B, T-1, 2, H, W]
+            gt_flow = self.flow_estimator(images, flows=flows)   # [B, T-1, 2, H, W]
         return self.flow_encoder(gt_flow)            # [B, T-1, N, D]
 
 
