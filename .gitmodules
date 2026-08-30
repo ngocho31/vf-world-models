@@ -1,3 +1,6 @@
 [submodule "src/vjepa2"]
 	path = src/vjepa2
 	url = https://github.com/facebookresearch/vjepa2
+[submodule "src/flowformer"]
+	path = src/flowformer
+	url = https://github.com/XiaoyuShi97/FlowFormerPlusPlus.git
