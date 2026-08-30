@@ -3,9 +3,9 @@
 # Base: Ubuntu 22.04 + CUDA 11.8 + cuDNN 8 + Python 3.11 + full AI dependencies
 #
 # Build the container (once):
-#  sudo docker build -t ai-base -f tools/docker/Dockerfile .
+#  sudo docker build -t ai-base -f utils/docker/Dockerfile.ai-base .
 # Build the container with a custom base image (optional):
-#  sudo docker build -t ai-base -f tools/docker/Dockerfile --build-arg CUDA_BASE_IMAGE=custom/image:tag .
+#  sudo docker build -t ai-base -f utils/docker/Dockerfile.ai-base --build-arg CUDA_BASE_IMAGE=custom/image:tag .
 #
 # Use the container (recommended shm settings for PyTorch DataLoader):
 #  sudo docker run --gpus all --shm-size=8g -u $(id -u):$(id -g) -v $(pwd):/workspace -p 8888:8888 -it --rm ai-base
@@ -129,6 +129,11 @@ RUN python3.11 -m pip install \
 RUN python3.11 -m pip install pytest
 
 RUN python3.11 -m pip install pybullet
+
+# For FlowFormer++ usage
+RUN python3.11 -m pip install \
+    yacs \
+    loguru
 
 WORKDIR /workspace
 
