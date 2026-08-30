@@ -17,12 +17,10 @@ camo_jepa/
   evaluation/
     losses.py               # L_JEPA, L_orth, L_recon
     metrics.py              # Evaluate intrinsic metrics (Cosine similarity, Mutual Information bounds)
-  motion/
-    flow.py                 # LiteFlowNet3 placeholder (not implemented yet)
   perception/
     static_encoder.py       # Load & freeze Drive-JEPA ViT-L (Context & Target)
-    motion_encoder.py       # Load Motion Checkpoint
-    fusion.py               # ResidualFusion combine static & dynamic
+    motion_encoder.py       # Load pre-trained frozen motion checkpoint
+    fusion.py               # GatedCrossAttentionFusion combine static & dynamic
     masking.py              # MaskSampler (create mask for z_task)
     predictor.py            # Load checkpoint V-JEPA predictor & Causal Wrapper
   pipeline/
@@ -78,7 +76,7 @@ camo_jepa/
 
 * `engine.py`: `train_step()` performs forward pass, calculates loss, executes backpropagation (`loss.backward()`), updates optimizer weights, and calls EMA updates on the target encoder.
 
-* `checkpoints.py`: Saves/loads only CaMo-JEPA trainable weights (Motion Encoder, Fusion, Factorizer, Confounder, Predictor wrapper) and does not replace the inherited Drive-JEPA/V-JEPA2 checkpoint loading path.
+* `checkpoints.py`: Saves/loads CaMo-JEPA trainable weights (Flow Encoder, Fusion, Factorizer, Confounder, Causal Predictor). Frozen Motion encoder and Frozen ViT encoders are not saved.
 
 ### `evaluation/` (Đánh giá)
 
@@ -94,10 +92,10 @@ camo_jepa/
 
                             FrameBatch: images [B, T, 3, H, W]
                                           │
+                                          ▼ (Ghép các cặp khung hình t và t+1)
+                                   Clips (2-frames)
+                                 [B, T-1, 2, 3, H, W]
                   ┌───────────────────────┴───────────────────────┐
-                  ▼ (Ghép các cặp khung hình t và t+1)             ▼
-             Clips (2-frames)                            Frame Differences / Flow
-             [B, T-1, 2, 3, H, W]                         [B, T-1, 2, H, W]
                   │                                               │
 ==================┼===============================================┼===============================
                   │                2. PERCEPTION BRANCHES         │
@@ -106,7 +104,7 @@ camo_jepa/
        ┌──────────┴──────────┐                                    │
        ▼                     ▼                                    ▼
 [ Context Encoder ]   [ Target Encoder ]                 [ Flow Estimator ]
- (ViT-L, FROZEN)     (ViT-L, FROZEN+EMA)                (RAFT / LiteFlowNet, FROZEN)
+ (ViT-L, FROZEN)     (ViT-L, FROZEN+EMA)                (FlowFormer++, FROZEN)
        │                     │                                    │
        │                     │                                    ▼
        │                     │                         [ FlowTokenEncoder ]
@@ -120,8 +118,8 @@ camo_jepa/
        │                          3. FUSION & FACTORIZATION       │
        └──────────────┐             ┌─────────────────────────────┘
                       ▼             ▼
-             [ ResidualFusion Module ]
-              (Gate/Projection, TRAINABLE)
+            [ GatedCrossAttentionFusion Module ]
+             (Cross-Attention/Gate, TRAINABLE)
                       │
                       ▼
                fused_patches [B, T-1, N, 1024]
@@ -186,8 +184,8 @@ camo_jepa/
             ┌──────────────────────────┼──────────────────────────┐
             ▼                          ▼                          ▼
    Update Gradient            Update Gradient            Update Gradient
-   - FlowTokenEncoder         - ResidualFusion           - ConfounderGRU
-   - LatentFactorizer         - CausalPredictor          - Projection layers
+  - FlowTokenEncoder         - GatedCrossAttentionFusion - ConfounderGRU
+  - LatentFactorizer         - CausalPredictor           - Projection layers
                                        │
                                        ▼
                          [ update_target_encoder() ]
@@ -204,8 +202,10 @@ Default required assets, relative to the repository root:
 
 ```text
 .cache/checkpoints/vjepa2/vitl_merge_3dataset_e50.pt
-vf-drive-jepa/vjepa2/
-dataset_camo/navsim/
+.cache/checkpoints/motion_estimator/kitti_finetune_vf.pth
+src/vjepa2/
+src/flowformer/
+dataset_camo/<source_name>
 ```
 
 ## Converted Dataset
@@ -252,6 +252,3 @@ available:
 ```bash
 python3 -m src.camo_jepa.cli
 ```
-
-The runner loads one real batch, runs Phase 1, and prints the fused and
-confounder tensor shapes.

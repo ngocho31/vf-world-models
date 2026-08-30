@@ -32,7 +32,6 @@ class CausalPredictor(nn.Module):
         predictor_num_heads: int = 12,
         num_mask_tokens: int = 10,
         mode: str = "add",
-        freeze: bool = False,
     ) -> None:
         super().__init__()
         if mode not in {"add", "concat"}:
@@ -75,11 +74,6 @@ class CausalPredictor(nn.Module):
         )
         self._load_checkpoint(checkpoint_path)
 
-        self.freeze = freeze
-        if freeze:
-            self.predictor.requires_grad_(False)
-            self.predictor.eval()
-
     @staticmethod
     def _import_predictor(vjepa2_root: Path):
         source_root = vjepa2_root / "src"
@@ -120,12 +114,6 @@ class CausalPredictor(nn.Module):
             raise ValueError(f"checkpoint is incompatible with V-JEPA predictor: {checkpoint_path}")
         del checkpoint, state_dict, normalized, compatible, expected
 
-    def train(self, mode: bool = True) -> "CausalPredictor":
-        super().train(mode)
-        if self.freeze:
-            self.predictor.eval()
-        return self
-
     def _inject(self, z_task_masked: torch.Tensor, U: torch.Tensor) -> torch.Tensor:
         u = self.u_projection(U).unsqueeze(1)
         if self.mode == "add":
@@ -140,5 +128,9 @@ class CausalPredictor(nn.Module):
         context_indices: torch.Tensor,
         target_indices: torch.Tensor,
     ) -> torch.Tensor:
-        conditioned = self._inject(z_task_masked, U)
+        # If confounder branch is disabled, use the masked task representation as is
+        if U is None:
+            conditioned = z_task_masked
+        else:
+            conditioned = self._inject(z_task_masked, U)
         return self.predictor(conditioned, [context_indices], [target_indices])

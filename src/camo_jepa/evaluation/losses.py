@@ -16,9 +16,20 @@ def compute_reconstruction_loss(fused: torch.Tensor, static: torch.Tensor) -> to
     return (1.0 - F.cosine_similarity(fused, static, dim=-1)).mean()
 
 
-def compute_orthogonality_loss(z_task: torch.Tensor, z_exogenous: torch.Tensor) -> torch.Tensor:
-    inner_product = (z_task * z_exogenous).sum(dim=-1)
-    return inner_product.square().mean()
+def compute_orthogonality_loss(z_task: torch.Tensor, z_exogenous: torch.Tensor, normalize: bool = True) -> torch.Tensor:
+    D = z_task.shape[-1]
+
+    z_task_flat = z_task.reshape(-1, D)
+    z_exogenous_flat = z_exogenous.reshape(-1, D)
+    n_samples = z_task_flat.shape[0]
+
+    if normalize:
+        z_task_flat = F.normalize(z_task_flat, p=2, dim=-1)
+        z_exogenous_flat = F.normalize(z_exogenous_flat, p=2, dim=-1)
+
+    gram_matrix = (z_task_flat.transpose(0, 1) @ z_exogenous_flat) / n_samples
+
+    return (gram_matrix ** 2).sum()
 
 
 class CaMoJEPALoss(nn.Module):
@@ -37,10 +48,25 @@ class CaMoJEPALoss(nn.Module):
         fused: torch.Tensor,
         static: torch.Tensor,
     ) -> dict[str, torch.Tensor]:
+        # 1. JEPA Prediction Loss
+        l_jepa = compute_jepa_loss(z_pred, z_target)
+
+        # 2. Orthogonality Loss (if factorizer branch is enabled)
+        if z_exogenous is not None:
+            l_orth = compute_orthogonality_loss(z_task, z_exogenous)
+        else:
+            l_orth = torch.tensor(0.0, device=z_pred.device)
+
+        # 3. Reconstruction Loss (if motion branch is enabled)
+        if fused is static:
+            l_recon = torch.tensor(0.0, device=z_pred.device)
+        else:
+            l_recon = compute_reconstruction_loss(fused, static)
+
         losses = {
-            "jepa": compute_jepa_loss(z_pred, z_target),
-            "orthogonality": compute_orthogonality_loss(z_task, z_exogenous),
-            "reconstruction": compute_reconstruction_loss(fused, static),
+            "jepa": l_jepa,
+            "orthogonality": l_orth,
+            "reconstruction": l_recon,
         }
         losses["total"] = (
             self.lambda_jepa * losses["jepa"]

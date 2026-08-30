@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import torch
 from torch import nn
@@ -14,18 +15,30 @@ def save_checkpoint(
     epoch: int,
     optimizer: torch.optim.Optimizer | None = None,
 ) -> Path:
-    """Save trainable CaMo-JEPA modules without frozen ViT encoders."""
+    """Save trainable CaMo-JEPA modules (Flow Encoder, Fusion, Factorizer, Confounder, Predictor).
+
+    Frozen ViT encoders (context/target) and frozen Flow Estimator are excluded.
+    """
     checkpoint_path = Path(checkpoint_path).expanduser()
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
-    payload = {
+    payload: dict[str, Any] = {
         "epoch": epoch,
-        "flow_encoder": model.flow_encoder.state_dict(),
-        "fusion": model.fusion.state_dict(),
-        "factorizer": model.factorizer.state_dict(),
-        "confounder": model.confounder.state_dict(),
-        "predictor": model.predictor.state_dict(),
     }
+
+    trainable_modules = [
+        "flow_encoder",
+        "fusion",
+        "factorizer",
+        "confounder",
+        "predictor",
+    ]
+    for module_name in trainable_modules:
+        if hasattr(model, module_name):
+            module = getattr(model, module_name)
+            if module is not None and isinstance(module, nn.Module):
+                payload[module_name] = module.state_dict()
+
     if optimizer is not None:
         payload["optimizer"] = optimizer.state_dict()
 
@@ -39,13 +52,28 @@ def load_checkpoint(
     optimizer: torch.optim.Optimizer | None = None,
     strict: bool = True,
 ) -> dict[str, object]:
-    """Load trainable CaMo-JEPA modules from a saved checkpoint payload."""
-    checkpoint = torch.load(Path(checkpoint_path).expanduser(), map_location="cpu")
-    model.flow_encoder.load_state_dict(checkpoint["flow_encoder"], strict=strict)
-    model.fusion.load_state_dict(checkpoint["fusion"], strict=strict)
-    model.factorizer.load_state_dict(checkpoint["factorizer"], strict=strict)
-    model.confounder.load_state_dict(checkpoint["confounder"], strict=strict)
-    model.predictor.load_state_dict(checkpoint["predictor"], strict=strict)
+    """Load checkpoint safely across different ablation configurations."""
+    checkpoint_path = Path(checkpoint_path).expanduser()
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError(f"[Checkpoint] File not found at {checkpoint_path}")
+    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+
+    trainable_modules = [
+        "flow_encoder",
+        "fusion",
+        "factorizer",
+        "confounder",
+        "predictor",
+    ]
+
+    for module_name in trainable_modules:
+        if module_name in checkpoint and hasattr(model, module_name):
+            module = getattr(model, module_name)
+            if module is not None and isinstance(module, nn.Module):
+                module.load_state_dict(checkpoint[module_name], strict=strict)
+
+    epoch = checkpoint["epoch"]
     if optimizer is not None and "optimizer" in checkpoint:
         optimizer.load_state_dict(checkpoint["optimizer"])
-    return checkpoint
+
+    return checkpoint, epoch, optimizer

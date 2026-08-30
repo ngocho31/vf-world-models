@@ -189,5 +189,6 @@ def make_camo_dataloader(
         batch_size=config.batch_size,
         shuffle=config.shuffle,
         num_workers=config.num_workers,
+        pin_memory=True if torch.cuda.is_available() else False,
         collate_fn=collate_camo_samples,
     )

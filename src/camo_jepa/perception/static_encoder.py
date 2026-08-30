@@ -23,7 +23,6 @@ class DriveJEPAViTLEncoder(nn.Module):
         vjepa2_root: str | Path,
         image_size: tuple[int, int],
         checkpoint_key: str = "encoder",
-        freeze: bool = True,
     ) -> None:
         super().__init__()
         checkpoint_path = Path(checkpoint_path).expanduser().resolve()
@@ -43,10 +42,6 @@ class DriveJEPAViTLEncoder(nn.Module):
             handle_nonsquare_inputs=True,
         )
         self._load_checkpoint(checkpoint_path, checkpoint_key)
-        self.freeze = freeze
-        if freeze:
-            self.backbone.requires_grad_(False)
-            self.backbone.eval()
 
     @staticmethod
     def _import_vit_large(vjepa2_root: Path):
@@ -90,12 +85,6 @@ class DriveJEPAViTLEncoder(nn.Module):
             raise ValueError(f"checkpoint is incompatible with V-JEPA ViT-L: {checkpoint_path}")
         del checkpoint, state_dict, normalized, compatible, expected
 
-    def train(self, mode: bool = True) -> "DriveJEPAViTLEncoder":
-        super().train(mode)
-        if self.freeze:
-            self.backbone.eval()
-        return self
-
     def forward_tokens(self, images: torch.Tensor) -> torch.Tensor:
         """Return patch tokens ``[B, T-1, N, D]`` for consecutive clips ``[t, t + 1]``."""
         if images.ndim != 5:
@@ -107,8 +96,7 @@ class DriveJEPAViTLEncoder(nn.Module):
         clips = clips.permute(0, 1, 3, 2, 4, 5).reshape(
             batch * (frames - 1), channels, 2, height, width
         )
-        with torch.no_grad() if self.freeze else torch.enable_grad():
-            tokens = self.backbone(clips)
+        tokens = self.backbone(clips)
         return tokens.reshape(batch, frames - 1, tokens.size(1), tokens.size(2))
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
@@ -132,7 +120,6 @@ def build_vit_encoders(
     checkpoint_path: str | Path,
     vjepa2_root: str | Path,
     image_size: tuple[int, int],
-    freeze: bool = True,
 ) -> tuple[DriveJEPAViTLEncoder, DriveJEPAViTLEncoder]:
     """Build frozen context and target ViT-L encoders from one Drive-JEPA checkpoint."""
     context_encoder = DriveJEPAViTLEncoder(
@@ -140,14 +127,12 @@ def build_vit_encoders(
         vjepa2_root=vjepa2_root,
         image_size=image_size,
         checkpoint_key="encoder",
-        freeze=freeze,
     )
     target_encoder = DriveJEPAViTLEncoder(
         checkpoint_path=checkpoint_path,
         vjepa2_root=vjepa2_root,
         image_size=image_size,
         checkpoint_key="target_encoder",
-        freeze=freeze,
     )
     return context_encoder, target_encoder
 
