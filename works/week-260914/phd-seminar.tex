@@ -1,0 +1,556 @@
+\def \slidetype{Research Seminar}
+\def \slidetitle{VN-Drive-JEPA: Causal Latent Predictive Architecture for Autonomous Vehicles in Vietnamese Traffic}
+
+\titleframe
+
+\begin{frame}
+  \frametitle{Contents}
+  \begin{itemize}
+    \item Background
+    \item Motivation and Problem Statement
+    \item Related Work
+    \item Proposed Method
+    \item Conclusion
+  \end{itemize}
+\end{frame}
+
+\section{Background}
+
+\begin{frame}
+  \frametitle{Autonomous Driving: A Major AI Challenge}
+  \begin{itemize}
+    \item Autonomous driving is a major AI challenge, attracting substantial research effort and industrial investment.
+    \item Traditional \textbf{modular, rule-based pipelines} decompose driving into sequential stages:
+    \begin{center}
+      \includegraphics[width=0.82\textwidth]{slides/phd-seminar/ad-modular.png}
+    \end{center}
+    \item Three core limitations follow from this sequential design:
+    \begin{enumerate}
+      \item \textbf{Error propagation}: a small perception error can be amplified into an unsafe planning or control decision.
+      \item \textbf{Information bottleneck}: hard labels such as 3D boxes and HD maps discard useful soft visual context.
+      \item \textbf{Corner cases}: hand-written rules cannot cover the enormous variety of unexpected traffic situations.
+    \end{enumerate}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{End-to-End Autonomous Driving}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.6\textwidth}
+    \vspace{0pt}
+    \begin{itemize}
+      \item \textbf{End-to-end (E2E) driving} uses one unified neural network to map raw multi-view video, LiDAR, or radar directly to control commands or waypoints.
+      \item Global end-to-end optimization replaces a chain of separate modules, preserving sensor context and reducing accumulated intermediate errors.
+    \end{itemize}
+    \column{0.4\textwidth}
+    \vspace{0pt}
+    \begin{center}
+      \includegraphics[width=\textwidth]{slides/phd-seminar/ad-e2e.jpg}
+      \\[0em]
+      \scriptsize \tiny Source: \hyperlink{ref:2}{[2]}
+    \end{center}
+  \end{columns}
+  \vspace{0.3em}
+  \begin{itemize}
+    \item \textbf{Challenge of reactive E2E:} it can map $O_t \rightarrow a_t$ as a black-box response, with limited explicit physical reasoning or long-horizon prediction.
+    \item This can lead to unsafe decisions in rare events and complex, dynamic traffic scenes.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Integrating a World Model into E2E}
+  \begin{itemize}
+    \item A \textbf{world model} predicts a future environmental state from the current state and a hypothetical action.
+    \item It augments E2E with physical reasoning, longer-horizon prediction, and safer decision-making in complex traffic.
+  \end{itemize}
+  \begin{center}
+    \includegraphics[width=0.76\textwidth,height=0.42\textheight,keepaspectratio]{slides/phd-seminar/ad-e2e-wm.png}
+  \end{center}
+  \begin{itemize}
+    \item As an \textbf{internal mental simulator}, it receives $z_t$ and $a_t$ to predict $z_{t+1}$ in latent space.
+    \item The planner rolls out multiple candidate actions, rejects predicted collision risks, and issues only a safer control action.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Two Paradigms of World Models for Autonomous Driving}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{>{\raggedright\arraybackslash}p{0.16\textwidth}|>{\raggedright\arraybackslash}p{0.385\textwidth}|>{\raggedright\arraybackslash}p{0.4\textwidth}}
+    \textbf{Criterion} & \textbf{Generative / Pixel-Based} \newline \scriptsize GAIA-1, DriveWM, DriveFuture & \textbf{Latent World Model / JEPA} \newline \scriptsize V-JEPA, ACT-JEPA, LeWorldModel \\
+    \hline
+    \textbf{Mechanism} & Generates future RGB frames, often with autoregressive or diffusion models. & Predicts future semantic features directly in latent space, without decoding images. \\
+    \textbf{Speed / cost} & Requires heavy computation and may be too slow for real-time control. & Uses lightweight prediction, enabling fast closed-loop planning rollouts. \\
+    \textbf{Data focus} & Spends capacity on visual details such as textures, shadows, weather, and background. & Prioritizes task-relevant objects, motion, road geometry, and lane structure. \\
+    \textbf{Main risk} & Small pixel errors accumulate over time and can create distorted or hallucinated objects. & Latent drift or representation collapse may occur without careful loss and architecture design. \\
+  \end{tabular}
+\end{frame}
+
+\section{Motivation and Problem Statement}
+
+\begin{frame}
+  \frametitle{Problem 1: Motion Blind Spots in Static ViTs}
+  \begin{itemize}
+    \item Static ViT backbones such as V-JEPA capture strong global semantics, but their attention is weak for small, fast-moving objects near the image boundary.
+    \item In Vietnamese urban traffic, a motorcycle or scooter may occupy only a tiny image region and change position sharply across consecutive frames.
+    \item This creates latent drift and unreliable collision-risk estimates when the model must reason about high-momentum agents.
+  \end{itemize}
+  \vspace{0.3em}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.4\textwidth}
+    \vspace{0pt}
+    \begin{itemize}
+      \item \textbf{Question:} how to inject motion information without destroying pretrained static representations?
+    \end{itemize}
+    \column{0.6\textwidth}
+    \vspace{0pt}
+    \begin{center}
+      \includegraphics[width=0.9\textwidth]{slides/phd-seminar/problem1.png}
+      \\[-0.2em]
+      \scriptsize \tiny Source: \hyperlink{ref:8}{[8]}
+    \end{center}
+  \end{columns}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Problem 2: Causal Leakage in Action-Conditioned Prediction}
+  \begin{itemize}
+    \item The ego action $A_t$ and the hidden environment state $U_t$ (weather, occlusion, nearby drivers' intent) jointly influence the future state $S_{t+1}$.
+    \item If not modeled explicitly, the backdoor path $A_t \leftarrow U_t \rightarrow S_{t+1}$ induces spurious correlations in latent space.
+    \item The predictor may mistake environmental changes for the effect of the ego action, leading to wrong planning decisions.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Problem 2: Causal Leakage in Action-Conditioned Prediction (cont'd.)}
+  \begin{center}
+    \includegraphics[width=0.7\textwidth]{slides/phd-seminar/causal.png}
+  \end{center}
+  \begin{itemize}
+    \item \textbf{Question:} how to prevent causal leakage from the hidden environment state $U_t$ when predicting the effect of the ego action $A_t$?
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Problem 3: Closed-Loop Evaluation Without Dense Labels}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.5\textwidth}
+    \vspace{0pt}
+    \begin{itemize}
+      \item Standard closed-loop evaluation usually relies on CARLA/NAVSIM, HD maps, and expensive 3D annotations, which are not available for raw Vietnamese driving videos.
+      \item This limits direct deployment of latent world-model planners on real-world data collected in dense, ambiguous urban scenes.
+    \end{itemize}
+    \column{0.5\textwidth}
+    \vspace{0pt}
+    \begin{center}
+      \animategraphics[width=\textwidth,loop,autoplay]{10}{slides/phd-seminar/carla_gif/carla_frame_}{000}{044}
+      \\[0em]
+      \scriptsize \tiny Source: \hyperlink{ref:14}{[14]}
+    \end{center}
+  \end{columns}
+  \vspace{0.3em}
+  \begin{itemize}
+    \item We therefore need a label-free latent-space evaluation: simulate actions, estimate risk, and reject unsafe trajectories without reconstructing the full 3D world.
+    \item \textbf{Question:} how to evaluate the safety of latent-space rollouts without relying on dense 3D labels?
+  \end{itemize}
+\end{frame}
+
+\section{Related Work}
+
+\begin{frame}
+  \frametitle{JEPAs and World Models}
+  \setlength{\tabcolsep}{2pt}
+  \renewcommand{\arraystretch}{1.2}
+  \small
+  \begin{tabular}{>{\raggedright\arraybackslash}p{0.18\textwidth}|>{\raggedright\arraybackslash}p{0.29\textwidth}|>{\raggedright\arraybackslash}p{0.23\textwidth}|>{\raggedright\arraybackslash}p{0.25\textwidth}}
+    \textbf{Method} & \textbf{Mechanism} & \textbf{Strength} & \textbf{Limitation} \\
+    \hline
+    \textbf{V-JEPA} (Bardes et al., 2024) & Self-supervised video representation learning with spatiotemporal masking. & Strong semantic features without a pixel decoder. & Not action-conditioned; static ViT can miss small, fast objects. \\
+    \textbf{ACT-JEPA / World Models} (LeCun, 2022) & Predicts future latent states conditioned on action $a_t$; plans with CEM. & Estimates the effect of actions on $z_{t+1}$. & High planning latency; hidden environmental noise is not explicitly modeled. \\
+    \textbf{GAIA-1 / UniAD} (Wayve, 2023; Hu et al., 2023) & Generative future video or end-to-end perception-to-planning. & Rich visual generation or integrated driving tasks. & High compute cost or strong dependence on 3D boxes and HD maps. \\
+  \end{tabular}
+  \vspace{0.5em}
+  \begin{block}{Research Gap}
+    No JEPA architecture directly integrates optical flow into the encoder to detect high-momentum objects near the vehicle.
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Causal World Models}
+  \setlength{\tabcolsep}{2pt}
+  \renewcommand{\arraystretch}{1.2}
+  \small
+  \begin{tabular}{>{\raggedright\arraybackslash}p{0.2\textwidth}|>{\raggedright\arraybackslash}p{0.27\textwidth}|>{\raggedright\arraybackslash}p{0.23\textwidth}|>{\raggedright\arraybackslash}p{0.25\textwidth}}
+    \textbf{Method} & \textbf{Causal approach} & \textbf{Strength} & \textbf{Limitation} \\
+    \hline
+    \textbf{Causal World Models} (Zhang et al., 2020) & Removes physical nuisance factors through latent deconfounding. & Demonstrates causal dynamics under controlled conditions. & Evaluated mainly in simple 2D environments; limited sensor complexity. \\
+    \textbf{Causal RL} (Pearl; Zhang et al., 2023) & Uses do-calculus and backdoor criteria for sequential decisions. & Provides a rigorous theory for reducing spurious correlations. & Requires a known causal graph or observable confounders. \\
+    \textbf{Invariant Causal Prediction} (Schölkopf et al., 2021) & Learns representations stable across domains. & Improves robustness under environment shifts. & Does not provide action interventions or latent rollouts. \\
+  \end{tabular}
+  \vspace{0.5em}
+  \begin{block}{Research Gap}
+    Existing methods do not orthogonally separate action-relevant $z_{\text{task}}$ from exogenous $z_{\text{exo}}$ while estimating the hidden confounder $U_t$ in driving videos.
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Planning and Reinforcement Learning in Latent Space}
+  \setlength{\tabcolsep}{2pt}
+  \renewcommand{\arraystretch}{1.2}
+  \small
+  \begin{tabular}{>{\raggedright\arraybackslash}p{0.2\textwidth}|>{\raggedright\arraybackslash}p{0.27\textwidth}|>{\raggedright\arraybackslash}p{0.23\textwidth}|>{\raggedright\arraybackslash}p{0.25\textwidth}}
+    \textbf{Method} & \textbf{Planning mechanism} & \textbf{Strength} & \textbf{Limitation} \\
+    \hline
+    \textbf{PrismAD} (Li et al., 2026) & Separates feature streams for trajectory planning. & Improves planning in complex urban scenes. & Relies heavily on 3D boxes and HD maps. \\
+    \textbf{DriveFuture / Diffusion} (Li et al., 2026) & Generates future trajectories through iterative denoising. & Produces smooth and diverse trajectories. & Slow inference prevents real-time deployment. \\
+    \textbf{TD-JEPA / DreamerV3} (Hafner et al., 2023) & Combines temporal-difference learning with latent world-model rollouts. & Supports long-horizon and zero-shot policy learning. & Lacks formal safety constraints; latent drift can accumulate. \\
+  \end{tabular}
+  \vspace{0.5em}
+  \begin{block}{Research Gap}
+    No method jointly learns from raw unlabeled sensors, evaluates closed-loop rollouts in latent space, and applies Ville's inequality for safe early stopping.
+  \end{block}
+\end{frame}
+
+\section{Proposed Method}
+
+\begin{frame}
+  \frametitle{VN-Drive-JEPA: Overall Architecture}
+  \begin{center}
+    \includegraphics[width=\textwidth]{slides/phd-seminar/vn-drive-jepa.png}
+  \end{center}
+  \begin{itemize}
+    \item \textbf{Block 1 -- CaMo-JEPA}: Causal Motion-Aware Joint Embedding Predictive Architecture for Self-Supervised Driving Perception: encodes raw video and action history, fuses static and motion features, and produces the causal latent state and future latent predictions.
+    \item \textbf{Block 2 -- Latent Policy Network}: uses the task-relevant latent state to generate candidate steering and acceleration actions.
+    \item \textbf{Block 3 -- Closed-Loop Evaluator}: rolls out each candidate in latent space, checks safety, and sends an early-stop signal before the optimal action is executed.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{CaMo-JEPA: Core World Model}
+  \begin{center}
+    \includegraphics[width=\textwidth]{slides/phd-seminar/CaMo-JEPA.png}
+  \end{center}
+  \begin{itemize}
+    \item \textbf{Input:} multi-view frames $x_t$ and optical flow $f_t$.
+    \item \textbf{Feature extraction:} Frozen Drive-JEPA ViT-L plus FlowTokenEncoder.
+    \item \textbf{Latent processing:} Gated Fusion, QR factorization, and ConfounderGRU.
+    \item \textbf{Action-conditioned predictor:} receives $z_{\text{task},t}$, the intervention $do(a_t)$, and hidden context $U_t$ to predict future task states:
+      $\hat z_{\text{task},t+1:t+H}=P_\phi\!\left(z_{\text{task},t},do(a_t),U_t\right)$.
+    \item \textbf{Output:} clean task state $z_{\text{task}}$, exogenous context $z_{\text{exo}}$, and predicted latent trajectory for planning and safety evaluation.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Motion-Aware Perception: Gated Fusion}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.56\textwidth}
+    \vspace{0pt}
+    \begin{align*}
+      Q &= e_{\text{static}}W_Q,\\
+      K &= e_{\text{flow}}W_K,\\
+      V &= e_{\text{flow}}W_V,\\
+      z_t &= e_{\text{static}} + g\,\mathrm{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V.
+    \end{align*}
+    \column{0.44\textwidth}
+    \vspace{0pt}
+    \includegraphics[width=\textwidth]{slides/phd-seminar/fusion-eg.png}
+  \end{columns}
+  \begin{itemize}
+    \item $e_{\text{static}}$: broad semantic context from Frozen ViT-L.
+    \item $e_{\text{flow}}$: local velocity cues from consecutive frames.
+    \item $g=0$ at initialization preserves the pretrained representation.
+  \end{itemize}
+  \vspace{0.3em}
+  \begin{block}{Purpose}
+    Inject motion information into relevant tokens without overwriting static semantic features.
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Causal Latent Factorization}
+  \begin{itemize}
+    \item Factorize the fused representation into action-relevant and exogenous components:
+      \[
+        z_t = z_{\text{task},t} + z_{\text{exo},t}.
+      \]
+    \item Use QR-based projections to enforce orthogonality:
+      \[
+        z_{\text{task}}=P_{\text{task}}z_t,\quad z_{\text{exo}}=P_{\text{exo}}z_t,\quad
+        P_{\text{task}}P_{\text{exo}}^T=0.
+      \]
+    \item The task branch receives action-related gradients; the exogenous branch preserves environmental context.
+    \item This reduces leakage when the predictor applies $do(a_t)$.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Example: Causal Latent Factorization}
+  \small
+  \setlength{\abovedisplayskip}{0pt}
+  \setlength{\belowdisplayskip}{0pt}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.46\textwidth}
+    \vspace{0pt}
+    \begin{block}{Input tensor}
+    \[
+      z_{\mathrm{fused}}=\begin{bmatrix}4&3\end{bmatrix}
+    \]
+    \begin{itemize}
+      \item Horizontal axis: exogenous context, e.g. weather or road condition.
+      \item Vertical axis: task information, e.g. steering and braking state.
+    \end{itemize}
+    \end{block}
+    \begin{block}{Step 1: orthogonal projections}
+    \[
+      P_{\mathrm{task}}=\begin{bmatrix}0&0\\0&1\end{bmatrix},\qquad
+      P_{\mathrm{exo}}=\begin{bmatrix}1&0\\0&0\end{bmatrix}.
+    \]
+    \end{block}
+    \hspace{0.04\textwidth}
+    \column{0.50\textwidth}
+    \vspace{0pt}
+    \begin{block}{Step 2: project the input}
+    \[
+      z_{\mathrm{task}}=P_{\mathrm{task}}z_{\mathrm{fused}}
+      =\begin{bmatrix}0&3\end{bmatrix},
+    \]
+    \[
+      z_{\mathrm{exo}}=P_{\mathrm{exo}}z_{\mathrm{fused}}
+      =\begin{bmatrix}4&0\end{bmatrix}.
+    \]
+    \end{block}
+    \begin{block}{Step 3: verify the factorization}
+      Reconstruction: $z_{\mathrm{task}}+z_{\mathrm{exo}}=z_{\mathrm{fused}}$\\
+      Orthogonality: $z_{\mathrm{task}}z_{\mathrm{exo}}^T=0$
+    \end{block}
+    \begin{block}{Step 4: causal intervention}
+      If steering changes $z_{\mathrm{fused}}$ from $[4,3]$ to $[4,8]$, then
+      $z_{\mathrm{task}}=[0,8]$ changes while $z_{\mathrm{exo}}=[4,0]$ remains fixed.
+    \end{block}
+  \end{columns}
+\end{frame}
+
+\begin{frame}
+  \frametitle{ConfounderGRU: Estimating Hidden Noise}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.56\textwidth}
+    \vspace{0pt}
+    \begin{align*}
+      x_t &= \operatorname{MeanPool}_{\mathrm{patch}}(z_{\mathrm{fused},t}),\\
+      h_t &= \mathrm{GRU}(x_t,h_{t-1}),\\
+      U_t &= h_t,\quad U_t\in\mathbb{R}^{128}.
+    \end{align*}
+    \column{0.44\textwidth}
+    \vspace{0pt}
+    \begin{block}{Backdoor path}
+      $a_t \leftarrow U_t \rightarrow z_{t+1}$
+    \end{block}
+  \end{columns}
+  \vspace{0.3em}
+  \begin{itemize}
+    \item Encodes slow-varying factors such as weather, occlusion, and surrounding-driver intent.
+    \item Uses temporal history because a single frame cannot identify hidden environmental causes.
+    \item Conditions the predictor without replacing $z_{\text{task}}$.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Example: ConfounderGRU}
+  \scriptsize
+  \setlength{\abovedisplayskip}{0pt}
+  \setlength{\belowdisplayskip}{0pt}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.44\textwidth}
+    \vspace{0pt}
+    \begin{block}{Input tensor}
+      $B=1$, two frames, three patches, four features:
+      \[
+        \texttt{fused\_patches}\in\mathbb{R}^{1\times2\times3\times4}
+      \]
+      Feature order:
+      $[\text{building/light},\text{position},\text{wetness},\text{traffic/brake}]$.
+    \end{block}
+    \begin{block}{$t-1$: three input patches}
+      \begin{align*}
+        P_1&=[0.9,0.8,0.1,0.0] && \text{building}\\
+        P_2&=[0.1,0.2,0.8,0.2] && \text{wet road}\\
+        P_3&=[0.2,0.5,0.3,0.9] && \text{braking car}
+      \end{align*}
+    \end{block}
+    \begin{block}{$t$: updated patches}
+      \begin{align*}
+        P_1&=[0.8,0.9,0.1,0.0] && \text{building}\\
+        P_2&=[0.1,0.1,0.9,0.3] && \text{wet road}\\
+        P_3&=[0.2,0.4,0.4,0.9] && \text{braking car}
+      \end{align*}
+    \end{block}
+    \hspace{0.04\textwidth}
+    \column{0.52\textwidth}
+    \vspace{0pt}
+    \begin{block}{Step 1: spatial mean-pooling}
+      \[
+        x_1=[0.40,0.50,0.40,0.37],\quad
+        x_2=[0.37,0.47,0.47,0.40].
+      \]
+    \end{block}
+    \begin{block}{Step 2: reduced GRU}
+      \[
+        W_x=\begin{bmatrix}0&0&0.7&0.7\\0&0&0.4&0.6\end{bmatrix},
+        W_h=\begin{bmatrix}0.5&0\\0&0.5\end{bmatrix}, h_0=[0,0].
+      \]
+      \[
+        h_t=\tanh(W_xx_t+W_hh_{t-1}),
+      \]
+      \[
+        h_1=\tanh([0.539,0.382])\approx[0.492,0.364].
+      \]
+    \end{block}
+    \begin{block}{Step 3: hidden confounder output}
+      \[
+        h_2=\tanh([0.609,0.428]+[0.246,0.182])
+        \approx[0.694,0.544].
+      \]
+      \[
+        U_t=h_2\in\mathbb{R}^{2}.
+      \]
+      $U_t$ accumulates persistent wet-road and braking context; building features are ignored because their input weights are zero.
+    \end{block}
+  \end{columns}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Action-Conditioned SCM Predictor}
+  \begin{itemize}
+    \item The causal predictor receives the clean task state, intervention, and hidden context:
+      \[
+        \hat{z}_{\text{task},t+1} = P_\phi\left(z_{\text{task},t},do(a_t),U_t\right).
+      \]
+    \item $do(a_t)$ changes only the action-relevant branch; $z_{\text{exo}}$ is held stable during a rollout.
+    \item Multiple candidate actions can therefore share the same environmental context and avoid repeated computation.
+    \item The output is a long-horizon latent trajectory for policy selection and safety evaluation.
+  \end{itemize}
+  \vspace{0.3em}
+  \begin{block}{Key benefit}
+    Causal conditioning separates the effect of the ego action from changes caused by the environment.
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Multi-Objective Training Loss}
+  \begin{align*}
+    \mathcal{L}_{\mathrm{total}} ={}& \lambda_{\mathrm{jepa}}\mathcal{L}_{\mathrm{jepa}}
+      + \lambda_{\mathrm{orth}}\mathcal{L}_{\mathrm{orth}}
+      + \lambda_{\mathrm{recon}}\mathcal{L}_{\mathrm{recon}},\\
+    \mathcal{L}_{\mathrm{jepa}} ={}& \operatorname{SmoothL1}
+      \!\left(\operatorname{LN}(z_{\mathrm{pred}}),\operatorname{LN}(z_{\mathrm{target}})\right),\\
+    \mathcal{L}_{\mathrm{orth}} ={}& \left\Vert
+      \frac{\bar z_{\mathrm{task}}^{T}\bar z_{\mathrm{exo}}}{N}
+      \right\Vert_F^2,\\
+    \mathcal{L}_{\mathrm{recon}} ={}& 1-\cos\!\left(z_{\mathrm{fused}},e_{\mathrm{static}}\right).
+  \end{align*}
+  \begin{itemize}
+    \item $\mathcal{L}_{\mathrm{jepa}}$: predicts normalized target tokens with Smooth L1.
+    \item $\mathcal{L}_{\mathrm{orth}}$: decorrelates task and exogenous representations.
+    \item $\mathcal{L}_{\mathrm{recon}}$: keeps motion fusion close to static semantics.
+    \item $\lambda_{\mathrm{jepa}},\lambda_{\mathrm{orth}},\lambda_{\mathrm{recon}}$: configurable loss weights.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+  \frametitle{Ablation Studies}
+  \scriptsize
+  \setlength{\tabcolsep}{4pt}
+  \renewcommand{\arraystretch}{1.2}
+  \begin{tabular}{l|c|c|c|c}
+    \textbf{Variant} & \textbf{ViT-L} & \textbf{Flow} & \textbf{Factorization} & \textbf{ConfounderGRU} \\
+    \hline
+    V1: V-JEPA baseline & Yes & No & No & No \\
+    V2: + Motion stream & Yes & Yes & No & No \\
+    V3: + Orthogonal loss & Yes & Yes & Yes & No \\
+    V4: + ConfounderGRU & Yes & Yes & No & Yes \\
+    V5: Full CaMo-JEPA & Yes & Yes & Yes & Yes \\
+  \end{tabular}
+  \vspace{0.6em}
+  \begin{itemize}
+    \item Evaluate latent MSE, motion recall near the vehicle, and causal deconfounding error.
+    \item Compare the independent contribution of motion, factorization, and hidden-confounder estimation.
+    \item The full model combines all three mechanisms for robust long-horizon rollouts.
+  \end{itemize}
+\end{frame}
+
+\section{Conclusion}
+
+\begin{frame}
+  \frametitle{Summary of Contributions}
+  \begin{enumerate}
+    \item We propose \textbf{CaMo-JEPA}, which fuses Frozen Drive-JEPA ViT-L features with optical-flow features through gated cross-attention.
+    \item We introduce causal latent factorization with QR-based orthogonal projections and ConfounderGRU to separate task-relevant dynamics from exogenous context.
+    \item We formulate a three-term training objective combining JEPA prediction, orthogonality, and latent reconstruction losses.
+    \item We outline a label-free latent-space planning and evaluation framework with candidate-action rollouts and Ville-inequality-based early stopping.
+  \end{enumerate}
+  \vspace{0.3em}
+  \begin{block}{Current scope}
+    The CaMo-JEPA core world model is the focus of this work; the policy and closed-loop evaluator remain under development.
+  \end{block}
+\end{frame}
+
+\begin{frame}
+  \frametitle{References}
+  \begin{enumerate}
+    % Background
+    \item[\hypertarget{ref:1}{[1]}] Chen, L., Wu, P., Chitta, K., Jaeger, B., Geiger, A., \& Li, H. (2024). End-to-end autonomous driving: Challenges and frontiers. \textit{IEEE Transactions on Pattern Analysis and Machine Intelligence}, 46(12), 10164--10183.
+    \item[\hypertarget{ref:2}{[2]}] Lee, T. B. (2025). \textit{Waymo and Tesla's self-driving systems are more similar than people think}. Understanding AI. \url{https://www.understandingai.org/p/waymo-and-teslas-self-driving-systems} (Accessed: 17/09/2026).
+    \item[\hypertarget{ref:3}{[3]}] Guan, Y., Liao, H., Li, Z., Hu, J., Yuan, R., Zhang, G., \& Xu, C. (2024). World models for autonomous driving: An initial survey. \textit{IEEE Transactions on Intelligent Vehicles}.
+    \item[\hypertarget{ref:4}{[4]}] LeCun, Y. (2022). A path towards autonomous machine intelligence (version 0.9.2). \textit{OpenReview}.
+    \item[\hypertarget{ref:5}{[5]}] Bardes, A., Garrido, Q., Ponce, J., Chen, X., Rabbat, M., LeCun, Y., ... \& Ballas, N. (2024). V-JEPA: Video joint embedding predictive architecture. \textit{arXiv preprint arXiv:2404.08471}.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}
+  \frametitle{References}
+  \begin{enumerate}
+    % Background
+    \item[\hypertarget{ref:6}{[6]}] Assran, M., Duval, Q., Misra, I., Bojanowski, P., Vincent, P., Rabbat, M., ... \& Ballas, N. (2023). Self-supervised learning from images with a joint-embedding predictive architecture. In \textit{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)} (pp. 15619--15629).
+    \item[\hypertarget{ref:7}{[7]}] Hu, Y., Yang, J., Chen, L., Li, K., Sima, C., Zhu, X., ... \& Li, H. (2023). Planning-oriented autonomous driving. In \textit{Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)} (pp. 17853--17862).
+    % Problem 1
+    \item[\hypertarget{ref:8}{[8]}] Mu, R., Yu, W., Li, Z., Wang, C., Zhao, G., Zhou, W., \& Ma, M. (2024). Motion planning for autonomous vehicles in unanticipated obstacle scenarios at intersections based on artificial potential field. \textit{Applied Sciences}, 14(4), 1626.
+    \item[\hypertarget{ref:9}{[9]}] Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., ... \& Houlsby, N. (2020). An image is worth 16x16 words: Transformers for image recognition at scale. \textit{arXiv preprint arXiv:2010.11929}.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}
+  \frametitle{References}
+  \begin{enumerate}
+    % Problem 1
+    \item[\hypertarget{ref:10}{[10]}] Ranftl, R., Bochkovskiy, A., \& Koltun, V. (2021). Vision transformers for dense prediction. In \textit{Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV)} (pp. 12159--12168).
+    % Problem 2
+    \item[\hypertarget{ref:11}{[11]}] Pearl, J. (2009). \textit{Causality: Models, Reasoning, and Inference} (2nd ed.). Cambridge University Press.
+    \item[\hypertarget{ref:12}{[12]}] Schölkopf, B., Locatello, F., Bauer, S., Ke, N. R., Kalchbrenner, N., Goyal, A., \& Bengio, Y. (2021). Toward causal representation learning. \textit{Proceedings of the IEEE}, 109(5), 612--634.
+    \item[\hypertarget{ref:13}{[13]}] Zeng, Y., Cai, R., Sun, F., Huang, L., \& Hao, Z. (2024). A survey on causal reinforcement learning. \textit{IEEE Transactions on Neural Networks and Learning Systems}, 36(4), 5942--5962.
+    % Problem 3
+    \item[\hypertarget{ref:14}{[14]}] CARLA Simulator. (2020). \textit{CARLA Release 0.9.8}. \url{https://carla.org/2020/03/09/release-0.9.8/}
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}
+  \frametitle{References}
+  \begin{enumerate}
+    % Problem 3
+    \item[\hypertarget{ref:15}{[15]}] Dosovitskiy, A., Ros, G., Codevilla, F., Lopez, A., \& Koltun, V. (2017). CARLA: An open urban driving simulator. In \textit{Conference on Robot Learning (CoRL)} (pp. 1--16). PMLR.
+    \item[\hypertarget{ref:16}{[16]}] Dauner, D., Hallgarten, M., Li, T., Weng, X., Huang, Z., Yang, Z., ... \& Chitta, K. (2024). Navsim: Data-driven non-reactive autonomous vehicle simulation and benchmarking. \textit{Advances in Neural Information Processing Systems (NeurIPS)}, 37, 28706--28719.
+    % Related Work
+    \item[\hypertarget{ref:17}{[17]}] Teed, Z., \& Deng, J. (2020, August). Raft: Recurrent all-pairs field transforms for optical flow. In \textit{European Conference on Computer Vision} (pp. 402--419). Springer, Cham.
+    \item[\hypertarget{ref:18}{[18]}] Li, M., Yang, M., Liu, F., Chen, X., Chen, Z., \& Wang, J. (2020). Causal world models by unsupervised deconfounding of physical dynamics. \textit{arXiv preprint arXiv:2012.14228}.
+  \end{enumerate}
+\end{frame}
+
+\begin{frame}
+  \frametitle{References}
+  \begin{enumerate}
+    % Problem 3
+    \item[\hypertarget{ref:19}{[19]}] Ding, K., Lin, Z., Wang, H., Gui, J., Liu, Q., Wang, Z., ... \& He, L. (2026). PrismAD: Decoupled Planning via Semantic Mixture-of-Planners for End-to-End Autonomous Driving. \textit{arXiv preprint arXiv:2607.10336}.
+    \item[\hypertarget{ref:20}{[20]}] Li, X., Wang, B., Zhang, J., \& Wang, J. (2026, June). Temporally Decoupled Diffusion Planning for Autonomous Driving. In \textit{Proceedings of the International Conference on Automated Planning and Scheduling} (Vol. 36, No. 1, pp. 719--728).
+    \item[\hypertarget{ref:21}{[21]}] Hafner, D., Pasukonis, J., Ba, J., \& Lillicrap, T. (2023). Mastering diverse domains through world models. \textit{arXiv preprint arXiv:2301.04104}.
+    \item[\hypertarget{ref:22}{[22]}] Wang, J. (2026, March). Latentvla: Taming latent space for generalizable and long-horizon bimanual manipulation. In \textit{Proceedings of the AAAI Conference on Artificial Intelligence} (Vol. 40, No. 22, pp. 18593--18601).
+    \item[\hypertarget{ref:23}{[23]}] Ramdas, A., Gr\"unwald, P., Vovk, V., \& Shafer, G. (2023). Game-theoretic statistics and safe anytime-valid inference. \textit{Statistical Science}, 38(4), 576--601.
+  \end{enumerate}
+\end{frame}
