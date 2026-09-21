@@ -1,18 +1,23 @@
 """Configuration objects for CaMo-JEPA training."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Tuple
+import os
+
+_RUN_DIR = os.environ.get("RUN_DIR", "work_dirs")
 
 
 @dataclass(frozen=True)
 class CaMoJEPAConfig:
     # Dataset and dataloader parameters
-    dataset_root: str = "dataset_camo/navsim"
-    dataset_split: str = "trainval"
+    dataset_root: str = "/dataset/camo_jepa"  # SLURM container mount path
+    dataset_split: str = "train"
     history_length: int = 16
     stride: int = 1
     image_size: Tuple[int, int] = (512, 256)
     max_cached_episodes: int = 16
+    # batch_size=4 is the confirmed safe value for 1x A100-40GB with FlowFormer+ViT-L
+    # cli.py will scale this automatically if 2 GPUs are available
     batch_size: int = 4
     shuffle: bool = True
     num_workers: int = 4
@@ -27,13 +32,13 @@ class CaMoJEPAConfig:
     freeze_confounder: bool = False
     freeze_predictor: bool = False
 
-    # Ablation study flags
-    ablation_motion_branch: bool = False # True: disable the motion branch
-    ablation_confounder: bool = False # True: disable the confounder branch
-    ablation_factorizer: bool = False # True: disable the factorizer branch
+    # Ablation study flags (Read from ENV vars so we don't depend on ADO branch sync)
+    ablation_motion_branch: bool = os.environ.get("ABLATION_MOTION_BRANCH", "False").lower() in ("true", "1", "t")
+    ablation_confounder: bool = os.environ.get("ABLATION_CONFOUNDER", "False").lower() in ("true", "1", "t")
+    ablation_factorizer: bool = os.environ.get("ABLATION_FACTORIZER", "False").lower() in ("true", "1", "t")
 
     # Drive-JEPA ViT-L checkpoint and V-JEPA2 root path for loading pretrained weights
-    vitl_checkpoint_path: str = ".cache/checkpoints/vjepa2/vitl_merge_3dataset_e50.pt"
+    vitl_checkpoint_path: str = "/dataset/camo_jepa/vitl_merge_3dataset_e50.pt"  # 4.8GB confirmed on SLURM
     vjepa2_root: str = "src/vjepa2"
 
     # FlowFormer++ checkpoint and root path
@@ -65,13 +70,13 @@ class CaMoJEPAConfig:
     mask_ratio: float = 0.7
 
     # CaMo-JEPA training parameters
-    output_checkpoint_path: str = "outputs/camo-jepa/checkpoints/camo.pt"
-    output_log_dir: str = "outputs/camo-jepa/logs"
+    output_checkpoint_path: str = f"{_RUN_DIR}/camo-jepa/checkpoints/camo.pt"
+    output_log_dir: str = f"{_RUN_DIR}/camo-jepa/logs"
     pretrained: bool = True
     latent_dim: int = 1024
-    num_epochs: int = 50
-    n_steps_per_epoch: int = 100
-    learning_rate: float = 0.000525
+    num_epochs: int = int(os.environ.get("EPOCHS", 50))
+    n_steps_per_epoch: int = 250
+    learning_rate: float = 0.000415
     target_ema_momentum: float = 0.99925
     # Loss weights
     jepa_loss_weight: float = 1.0

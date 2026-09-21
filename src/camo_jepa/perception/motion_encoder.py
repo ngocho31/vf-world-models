@@ -129,8 +129,8 @@ class FlowFormerPlusPlusEstimator(nn.Module):
         if images.max() <= 1.0:
             images = images * 255.0
 
-        img1 = images[:, :-1].reshape(-1, channels, height, width)
-        img2 = images[:, 1:].reshape(-1, channels, height, width)
+        img1 = images[:, :-1].reshape(-1, channels, height, width).contiguous()
+        img2 = images[:, 1:].reshape(-1, channels, height, width).contiguous()
         output = self.backbone(img1, img2)
 
         flow = output

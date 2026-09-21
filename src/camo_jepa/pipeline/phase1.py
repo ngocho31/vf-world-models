@@ -94,14 +94,36 @@ class CaMoJEPAPipeline(nn.Module):
             target.mul_(momentum_value).add_(source, alpha=1.0 - momentum_value)
 
     def configure_trainable_modules(self) -> None:
+        # These two are always frozen as they are pretrained reference encoders
         self.context_encoder.requires_grad_(not self.config.freeze_context_encoder)
         self.target_encoder.requires_grad_(not self.config.freeze_target_encoder)
-        self.flow_estimator.requires_grad_(not self.config.freeze_flow_estimator)
-        self.flow_encoder.requires_grad_(not self.config.freeze_motion_encoder)
-        self.fusion.requires_grad_(not self.config.freeze_fusion)
-        self.factorizer.requires_grad_(not self.config.freeze_factorizer)
-        self.confounder.requires_grad_(not self.config.freeze_confounder)
+
+        # Motion branch: if ablated, the entire branch is bypassed in forward(),
+        # so we force requires_grad=False to match and avoid DDP unused-parameter errors.
+        if self.config.ablation_motion_branch:
+            self.flow_estimator.requires_grad_(False)
+            self.flow_encoder.requires_grad_(False)
+            self.fusion.requires_grad_(False)
+        else:
+            self.flow_estimator.requires_grad_(not self.config.freeze_flow_estimator)
+            self.flow_encoder.requires_grad_(not self.config.freeze_motion_encoder)
+            self.fusion.requires_grad_(not self.config.freeze_fusion)
+
+        # Factorizer: if ablated, bypassed → no gradient
+        if self.config.ablation_factorizer:
+            self.factorizer.requires_grad_(False)
+        else:
+            self.factorizer.requires_grad_(not self.config.freeze_factorizer)
+
+        # Confounder: if ablated, bypassed → no gradient
+        if self.config.ablation_confounder:
+            self.confounder.requires_grad_(False)
+        else:
+            self.confounder.requires_grad_(not self.config.freeze_confounder)
+
+        # Predictor is always active
         self.predictor.requires_grad_(not self.config.freeze_predictor)
+
 
     def train(self, mode: bool = True) -> CaMoJEPAPipeline:
         """Set the module in training mode while respecting frozen components."""
