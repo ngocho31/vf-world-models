@@ -11,7 +11,7 @@ class CaMoJEPAConfig:
     dataset_split: str = "trainval"
     history_length: int = 16
     stride: int = 1
-    image_size: Tuple[int, int] = (512, 256)
+    image_size: Tuple[int, int] = (256, 256)
     max_cached_episodes: int = 16
     batch_size: int = 4
     shuffle: bool = True
@@ -71,7 +71,7 @@ class CaMoJEPAConfig:
     latent_dim: int = 1024
     num_epochs: int = 50
     n_steps_per_epoch: int = 100
-    learning_rate: float = 0.000525
+    learning_rate: float = 0.0001
     target_ema_momentum: float = 0.99925
     # Loss weights
     jepa_loss_weight: float = 1.0
