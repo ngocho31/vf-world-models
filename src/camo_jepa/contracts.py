@@ -72,3 +72,4 @@ class ModelOutput:
     mask_indices: torch.Tensor | None = None
     context_indices: torch.Tensor | None = None
     losses: dict[str, torch.Tensor] | None = None
+    diagnostics: dict[str, float] | None = None

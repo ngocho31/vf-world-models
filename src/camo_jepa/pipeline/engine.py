@@ -23,6 +23,7 @@ def train_step(
     optimizer: torch.optim.Optimizer,
     loss_fn: nn.Module | None = None,
     scaler: torch.cuda.amp.GradScaler | None = None,
+    log_gate_gradients: bool = False,
 ) -> ModelOutput:
     """Run forward pass, compute total loss, backpropagate, step optimizer, and update target encoder via EMA.
 
@@ -53,6 +54,44 @@ def train_step(
 
     total_loss = losses["total"]
     output.losses = losses
+
+    if log_gate_gradients:
+        gate = base_model.fusion.gate
+        
+        def gradient_value(loss: torch.Tensor) -> float:
+            if not loss.requires_grad or not gate.requires_grad:
+                return 0.0
+            gradient = torch.autograd.grad(
+                loss,
+                gate,
+                retain_graph=True,
+                allow_unused=True,
+            )[0]
+            return float(gradient.detach().cpu().item()) if gradient is not None else 0.0
+            
+        raw_jepa_gradient = gradient_value(losses["jepa"])
+        raw_orthogonality_gradient = gradient_value(losses["orthogonality"])
+        raw_reconstruction_gradient = gradient_value(losses["reconstruction"])
+        
+        jepa_gradient = active_loss_fn.lambda_jepa * raw_jepa_gradient
+        orthogonality_gradient = active_loss_fn.lambda_orth * raw_orthogonality_gradient
+        reconstruction_gradient = active_loss_fn.lambda_recon * raw_reconstruction_gradient
+        
+        output.diagnostics = {
+            "gate_value": float(gate.detach().cpu().item()),
+            "gate_tanh": float(torch.tanh(gate.detach()).cpu().item()),
+            "d_jepa_d_gate": raw_jepa_gradient,
+            "d_orthogonality_d_gate": raw_orthogonality_gradient,
+            "d_reconstruction_d_gate": raw_reconstruction_gradient,
+            "lambda_jepa_d_jepa_d_gate": jepa_gradient,
+            "lambda_orth_d_orthogonality_d_gate": orthogonality_gradient,
+            "lambda_reconstruction_d_reconstruction_d_gate": reconstruction_gradient,
+            "weighted_d_jepa_d_gate": jepa_gradient,
+            "weighted_d_orthogonality_d_gate": orthogonality_gradient,
+            "weighted_d_reconstruction_d_gate": reconstruction_gradient,
+            "weighted_gradients_sum": jepa_gradient + orthogonality_gradient + reconstruction_gradient,
+            "d_total_d_gate": gradient_value(total_loss),
+        }
 
     optimizer.zero_grad(set_to_none=True)
 

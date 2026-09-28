@@ -42,7 +42,7 @@ class MaskSampler(nn.Module):
     def __init__(
         self,
         mask_ratio: float,
-        image_size: tuple[int, int] = (512, 256),
+        image_size: tuple[int, int] = (256, 256),
         patch_size: int = 16,
         spatial_pred_scale: tuple[float, float] = (0.2, 0.8),
         aspect_ratio: tuple[float, float] = (0.3, 3.0),

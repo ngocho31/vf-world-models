@@ -14,13 +14,14 @@ class CaMoJEPAConfig:
     dataset_split: str = "train"
     history_length: int = 16
     stride: int = 1
-    image_size: Tuple[int, int] = (512, 256)
+    image_size: Tuple[int, int] = (256, 256)
     max_cached_episodes: int = 16
     # batch_size=4 is the confirmed safe value for 1x A100-40GB with FlowFormer+ViT-L
     # cli.py will scale this automatically if 2 GPUs are available
-    batch_size: int = 4
+    batch_size: int = 12
     shuffle: bool = True
     num_workers: int = 4
+
 
     # Trainable model components
     freeze_context_encoder: bool = True
@@ -72,16 +73,21 @@ class CaMoJEPAConfig:
     # CaMo-JEPA training parameters
     output_checkpoint_path: str = f"{_RUN_DIR}/camo-jepa/checkpoints/camo.pt"
     output_log_dir: str = f"{_RUN_DIR}/camo-jepa/logs"
+    resume_checkpoint_path: str | None = None
     pretrained: bool = True
+    resume_optimizer_state: bool = True
     latent_dim: int = 1024
     num_epochs: int = int(os.environ.get("EPOCHS", 50))
-    n_steps_per_epoch: int = 250
-    learning_rate: float = 0.000415
+    n_steps_per_epoch: int = 120
+    learning_rate: float = 0.00045
     target_ema_momentum: float = 0.99925
+    gate_learning_rate_multiplier: float = 1.0
+    gate_weight_decay: float = 0.0
+    gate_gradient_log_interval: int = 100
     # Loss weights
     jepa_loss_weight: float = 1.0
-    orthogonality_loss_weight: float = 0.01
-    reconstruction_loss_weight: float = 0.01
+    orthogonality_loss_weight: float = 0.5
+    reconstruction_loss_weight: float = 0.1
 
     def __post_init__(self) -> None:
         if self.history_length < 2:
@@ -116,3 +122,9 @@ class CaMoJEPAConfig:
             raise ValueError("batch_size must be positive")
         if self.num_workers < 0:
             raise ValueError("num_workers must be non-negative")
+        if self.gate_learning_rate_multiplier <= 0:
+            raise ValueError("gate_learning_rate_multiplier must be positive")
+        if self.gate_weight_decay < 0:
+            raise ValueError("gate_weight_decay must be non-negative")
+        if self.gate_gradient_log_interval < 0:
+            raise ValueError("gate_gradient_log_interval must be non-negative")

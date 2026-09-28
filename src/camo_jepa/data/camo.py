@@ -9,7 +9,7 @@ from typing import Any, Sequence
 
 import numpy as np
 import torch
-from PIL import Image
+from PIL import Image, ImageOps
 from torch.utils.data import DataLoader, Dataset
 
 from ..config import CaMoJEPAConfig
@@ -47,7 +47,7 @@ class CaMoEpisodeDataset(Dataset[dict[str, torch.Tensor]]):
         split: str = "train",
         history_length: int = 4,
         stride: int = 1,
-        image_size: int | tuple[int, int] = (512, 256),
+        image_size: int | tuple[int, int] = (256, 256),
         max_cached_episodes: int = 8,
     ) -> None:
         if history_length < 1:
@@ -155,7 +155,11 @@ class CaMoEpisodeDataset(Dataset[dict[str, torch.Tensor]]):
             raise FileNotFoundError(f"CaMo image does not exist: {image_path}")
         with Image.open(image_path) as image:
             image = image.convert("RGB")
-            image = image.resize(self.image_size, Image.Resampling.BILINEAR)
+            image = ImageOps.fit(
+                image,
+                self.image_size,
+                method=Image.Resampling.BILINEAR,
+            )
             array = np.asarray(image, dtype=np.float32).copy() / 255.0
         return torch.from_numpy(array).permute(2, 0, 1)
 
