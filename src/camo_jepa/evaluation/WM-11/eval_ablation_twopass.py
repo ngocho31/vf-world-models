@@ -414,7 +414,7 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     logger.info("=" * 60)
-    logger.info("CaMo-JEPA Two-Pass Ablation Evaluation (Ultimate Clean Version)")
+    logger.info("CaMo-JEPA Two-Pass Ablation Evaluation")
     logger.info("=" * 60)
 
     config_kwargs: dict[str, Any] = {
@@ -507,7 +507,7 @@ def main() -> None:
     logger.info(f"Chart saved to {chart_output}")
 
     print("\n" + "=" * 70)
-    print("  TWO-PASS ABLATION RESULTS (ULTIMATE CLEAN)")
+    print("  TWO-PASS ABLATION RESULTS")
     print("=" * 70)
     for vname in ["full", "static_only", "random_flow"]:
         v = summary[vname]
